@@ -1,0 +1,25 @@
+app:
+  name: Learning Community Backend
+  version: 2.0.0
+  debug: true
+  host: 0.0.0.0
+  port: 5000
+
+database:
+  host: localhost
+  port: 3306
+  user: root
+  password: '123456'
+  database: learning_community
+  charset: utf8mb4
+
+jwt:
+  secret_key: your_jwt_secret_key_change_this_in_production
+  algorithm: HS256
+  expiration: 86400
+
+# 后端超时配置（分钟）
+# app_config:
+#   host: 0.0.0.0
+#   port: 5000
+#   debug: true

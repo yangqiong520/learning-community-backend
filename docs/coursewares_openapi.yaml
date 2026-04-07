@@ -1,0 +1,481 @@
+openapi: 3.0.0
+info:
+  title: 教案课件 API
+  version: v2.0.0
+  description: 教案课件管理接口文档
+
+servers:
+  - url: http://localhost:5000
+    description: 本地开发环境
+  - url: /api/v2
+    description: 生产环境
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Courseware:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 教案课件唯一标识
+          example: 1
+        title:
+          type: string
+          description: 标题
+          example: 教案课件标题
+        content:
+          type: string
+          description: 内容
+          example: 教案课件详细内容
+        document_file_id:
+          type: integer
+          description: 文档文件ID
+          example: 100
+          nullable: true
+        file_url:
+          type: string
+          description: 文档文件链接
+          example: /api/v2/files/serve/100
+        image_file_id:
+          type: integer
+          description: 图片文件ID
+          example: 101
+          nullable: true
+        imgurl:
+          type: string
+          description: 图片链接
+          example: /api/v2/files/serve/101
+        uploader:
+          type: string
+          description: 上传者用户名
+          example: 张三
+        time:
+          type: string
+          description: 上传时间
+          example: 2024-03-22
+        like:
+          type: boolean
+          description: 是否收藏/点赞
+          example: true
+        pdf_file_id:
+          type: integer
+          description: PDF文件ID（仅Office文档有此字段）
+          example: 102
+          nullable: true
+        pdf_url:
+          type: string
+          description: PDF文件链接（仅Office文档有此字段）
+          example: /api/v2/files/serve/102
+          nullable: true
+
+    CoursewaresResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: 获取成功
+        data:
+          type: object
+          properties:
+            coursewares:
+              type: array
+              items:
+                $ref: '#/components/schemas/Courseware'
+            total:
+              type: integer
+              example: 10
+            page:
+              type: integer
+              example: 1
+            per_page:
+              type: integer
+              example: 10
+            pages:
+              type: integer
+              example: 1
+
+    CoursewareResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: 操作成功
+        data:
+          type: object
+          properties:
+            courseware:
+              $ref: '#/components/schemas/Courseware'
+            is_liked:
+              type: boolean
+              example: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: 请求参数错误
+        data:
+          type: object
+          nullable: true
+
+paths:
+  /api/v2/coursewares/upload:
+    post:
+      tags:
+        - 教案课件
+      summary: 上传教案课件
+      description: |
+        上传教案课件的文档和图片
+
+        **Office 文档自动转换**:
+        - 如果上传的文档是 Office 文件（.doc, .docx, .xls, .xlsx, .ppt, .pptx），系统会自动转换为 PDF
+        - 转换过程完全透明，无需额外操作
+        - PDF 文件会自动关联到文档文件，可在响应数据中的 `pdf_file_id` 和 `pdf_url` 字段获取
+        - 转换失败不影响文档上传，系统会记录日志
+
+        **返回数据包含PDF信息**:
+        - 上传 Office 文档后，响应中的教案课件数据会包含 `pdf_file_id` 和 `pdf_url` 字段
+        - 前端可以直接使用 `pdf_url` 进行PDF预览
+
+        **支持的文档格式**: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, RTF, MD
+        **支持的图片格式**: PNG, JPG, JPEG, GIF, BMP, WEBP, ICO, SVG
+        **最大文件大小**: 100MB
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - title
+                - document
+                - image
+              properties:
+                title:
+                  type: string
+                  description: 标题
+                  example: 教案课件标题
+                content:
+                  type: string
+                  description: 内容（不提供时自动从文档提取）
+                  example: 教案课件详细内容
+                document:
+                  type: string
+                  format: binary
+                  description: |
+                    文档文件（支持 PDF、Word、Excel、PowerPoint 等）
+                    - Office 文档会自动转换为 PDF
+                    - 支持的格式：pdf, doc, docx, xls, xlsx, ppt, pptx, txt, rtf, md
+                  example: document.docx
+                image:
+                  type: string
+                  format: binary
+                  description: 图片文件（支持 PNG、JPG、GIF、SVG 等）
+                  example: image.jpg
+      responses:
+        '201':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoursewareResponse'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/coursewares:
+    get:
+      tags:
+        - 教案课件
+      summary: 获取教案课件列表
+      description: 分页获取教案课件列表，支持关键词搜索
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: keyword
+          in: query
+          description: 搜索关键词（搜索标题和内容）
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoursewaresResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/coursewares/:
+    get:
+      tags:
+        - 教案课件
+      summary: 获取教案课件列表（别名）
+      description: 分页获取教案课件列表，支持关键词搜索
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: keyword
+          in: query
+          description: 搜索关键词（搜索标题和内容）
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoursewaresResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/coursewares/{id}:
+    get:
+      tags:
+        - 教案课件
+      summary: 获取单个教案课件
+      description: 根据ID获取教案课件详情
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 教案课件ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoursewareResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 教案课件不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - 教案课件
+      summary: 更新教案课件
+      description: 更新教案课件的标题和内容（需要超级管理员、教师或管理员权限）
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 教案课件ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  description: 标题
+                  example: 更新后的标题
+                content:
+                  type: string
+                  description: 内容
+                  example: 更新后的内容
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoursewareResponse'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 教案课件不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - 教案课件
+      summary: 删除教案课件
+      description: 软删除教案课件（需要超级管理员、教师或管理员权限）
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 教案课件ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              type: object
+              properties:
+                code:
+                  type: integer
+                  example: 200
+                message:
+                  type: string
+                  example: 删除成功
+                data:
+                  type: object
+                  nullable: true
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 教案课件不存在
+          content:
+            application/json:
+            schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/coursewares/{id}/like:
+    post:
+      tags:
+        - 教案课件
+      summary: 收藏/取消收藏
+      description: 切换教案课件的收藏状态
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 教案课件ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoursewareWithLikeResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 教案课件不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+tags:
+  - name: 教案课件
+    description: 教案课件管理相关接口

@@ -1,0 +1,473 @@
+openapi: 3.0.0
+info:
+  title: Learning Community Backend API - Regulations
+  version: 2.0.0
+  description: |
+    Learning Community Backend API v2 - Regulations Service
+    
+    ## Features
+    - **Upload with document & image**: Both document and image files are required
+    - **File auto-detection**: Backend automatically detects file type
+    - **Collection system**: Users can collect/uncollect regulations
+    - **URL generation**: Automatic file URL generation using Flask url_for
+    - **Permission control**: Role-based access control
+    
+    ## Permission Rules
+    | Role | View | Create | Update | Delete | Collect |
+    |-------|------|--------|--------|--------|----------|
+    | Student | ✅ | ✅ | ❌ | ✅ |
+    | Teacher | ✅ | ✅ | ✅(own) | ✅ |
+    | Admin | ✅ | ✅ | ✅(all) | ✅ |
+    | Super Admin | ✅ | ✅ | ✅(all) | ✅ |
+
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+
+tags:
+  - name: 制度规范
+    description: 制度规范管理接口
+
+paths:
+  /api/v2/regulations/upload:
+    post:
+      tags:
+        - 制度规范
+      summary: 发布制度规范
+      description: |
+        发布制度规范的文档和图片
+
+        **Office 文档自动转换**:
+        - 如果上传的文档是 Office 文件（.doc, .docx, .xls, .xlsx, .ppt, .pptx），系统会自动转换为 PDF
+        - 转换过程完全透明，无需额外操作
+        - PDF 文件会自动关联到文档文件，可在响应数据中的 `pdf_file_id` 和 `pdf_url` 字段获取
+        - 转换失败不影响文档上传，系统会记录日志
+
+        **返回数据包含PDF信息**:
+        - 上传 Office 文档后，响应中的制度数据会包含 `pdf_file_id` 和 `pdf_url` 字段
+        - 前端可以直接使用 `pdf_url` 进行PDF预览
+
+        **支持的文档格式**: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, RTF, MD
+        **支持的图片格式**: PNG, JPG, JPEG, GIF, BMP, WEBP, ICO, SVG
+        **最大文件大小**: 100MB
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - title
+                - content
+                - document
+                - image
+              properties:
+                title:
+                  type: string
+                  description: 标题（必填）
+                  example: "校园安全管理制度"
+                content:
+                  type: string
+                  description: 内容（必填）
+                  example: "本文档详细说明了..."
+                document:
+                  type: string
+                  format: binary
+                  description: |
+                    文档文件（必填）
+                    - Office 文档会自动转换为 PDF
+                    - 支持的格式：pdf, doc, docx, xls, xlsx, ppt, pptx, txt, rtf, md
+                  example: document.docx
+                image:
+                  type: string
+                  format: binary
+                  description: 图片文件（必填）
+                  example: image.jpg
+      responses:
+        '201':
+          description: 发布成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: "发布成功"
+                  data:
+                    type: object
+                    properties:
+                      regulation:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            example: 1
+                          file_url:
+                            type: string
+                            example: "http://localhost:5000/api/v2/files/serve/1"
+                            description: 文档下载链接
+                          imgurl:
+                            type: string
+                            example: "http://localhost:5000/api/v2/files/serve/2"
+                            description: 图片展示链接
+                          title:
+                            type: string
+                            example: "校园安全管理制度"
+                          content:
+                            type: string
+                            example: "本文档详细说明了..."
+                          uploader:
+                            type: string
+                            example: "张三"
+                            description: 上传者用户名
+                          time:
+                            type: string
+                            example: "2026-03-19 15:30:00"
+                          like:
+                            type: boolean
+                            example: false
+                            description: 当前用户是否已收藏
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/regulations:
+    get:
+      tags:
+        - 制度规范
+      summary: 获取制度规范列表
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            description: 页码
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 10
+            description: 每页数量
+        - name: keyword
+          in: query
+          schema:
+            type: string
+          description: 关键词搜索（标题/内容）
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "获取成功"
+                  data:
+                    type: object
+                    properties:
+                      regulations:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Regulation'
+                      total:
+                        type: integer
+                        example: 100
+                      page:
+                        type: integer
+                        example: 1
+                      per_page:
+                        type: integer
+                        example: 10
+                      pages:
+                        type: integer
+                        example: 10
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/regulations/{regulation_id}:
+    get:
+      tags:
+        - 制度规范
+      summary: 获取制度规范详情
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: regulation_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "获取成功"
+                  data:
+                    type: object
+                    properties:
+                      regulation:
+                        $ref: '#/components/schemas/Regulation'
+        '404':
+          description: 制度规范不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - 制度规范
+      summary: 更新制度规范
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: regulation_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  description: 标题
+                  example: "更新后的标题"
+                content:
+                  type: string
+                  description: 内容
+                  example: "更新后的内容"
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "更新成功"
+                  data:
+                    type: object
+                    properties:
+                      regulation:
+                        $ref: '#/components/schemas/Regulation'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 制度规范不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - 制度规范
+      summary: 删除制度规范
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: regulation_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "删除成功"
+                  data:
+                    type: object
+                    nullable: true
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 制度规范不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/regulations/{regulation_id}/collect:
+    post:
+      tags:
+        - 制度规范
+      summary: 收藏/取消收藏
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: regulation_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "操作成功"
+                  data:
+                    type: object
+                    properties:
+                      like:
+                        type: boolean
+                        example: true
+                        description: true表示已收藏，false表示未收藏
+        '404':
+          description: 制度规范不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 错误码
+          example: 400
+        message:
+          type: string
+          description: 错误信息
+          example: "请求参数错误"
+        data:
+          type: object
+          nullable: true
+          description: 错误数据（通常为null）
+
+    Regulation:
+       type: object
+       properties:
+         id:
+           type: integer
+           description: 制度规范ID
+           example: 1
+         document_file_id:
+           type: integer
+           description: 文档文件ID
+           example: 120
+           nullable: true
+         file_url:
+           type: string
+           description: 文档下载链接
+           example: "http://localhost:5000/api/v2/files/serve/120"
+         image_file_id:
+           type: integer
+           description: 图片文件ID
+           example: 119
+           nullable: true
+         imgurl:
+           type: string
+           description: 图片展示链接
+           example: "http://localhost:5000/api/v2/files/serve/119"
+         title:
+           type: string
+           description: 标题
+           example: "校园安全管理制度"
+         content:
+           type: string
+           description: 内容
+           example: "本文档详细说明了..."
+         uploader:
+           type: string
+           description: 上传者用户名
+           example: "张三"
+         time:
+           type: string
+           description: 上传时间
+           example: "2026-03-19 15:30:00"
+         like:
+           type: boolean
+           description: 当前用户是否已收藏
+           example: false
+         pdf_file_id:
+           type: integer
+           description: PDF文件ID（仅Office文档有此字段）
+           example: 121
+           nullable: true
+         pdf_url:
+           type: string
+           description: PDF文件链接（仅Office文档有此字段）
+           example: "http://localhost:5000/api/v2/files/serve/121"
+           nullable: true

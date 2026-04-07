@@ -1,0 +1,741 @@
+openapi: 3.0.0
+info:
+  title: Learning Community Backend API - File Storage
+  version: 2.0.0
+  description: |
+    Learning Community Backend API v2 - File Storage Service
+    
+    ## Features
+    - **Auto-detect file type**: Backend automatically detects file type based on extension
+    - **Supported file types**:
+      - **Image**: png, jpg, jpeg, gif, bmp, webp, ico, svg
+      - **Video**: mp4, avi, mov, wmv, flv, mkv, webm,3gp
+      - **Document**: pdf, doc, docx, xls, xlsx, ppt, pptx, txt, rtf, md
+      - **Other**: All other file types
+    - **File size limit**: Maximum 100MB
+    - **Auto-organization**: Files are automatically stored in corresponding directories (images, videos, documents, others)
+    - **UUID filename**: Files are renamed with UUID to avoid conflicts
+    - **Security**: Upload and download require JWT token authentication (except serve endpoint)
+ 
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+ 
+tags:
+  - name: 文件存储
+    description: File upload, download, and management APIs (文件上传、下载和管理接口)
+ 
+paths:
+  /api/v2/files/upload:
+    post:
+      tags:
+        - 文件存储
+      summary: 上传文件
+      description: |
+        Upload a file. The backend will automatically detect file type based on file extension and store it in corresponding directory.
+        
+        **Office Document Auto-Conversion**:
+        - If the uploaded file is an Office document (.doc, .docx, .xls, .xlsx, .ppt, .pptx), 
+          it will be automatically converted to PDF during upload.
+        - The conversion process takes approximately 30 seconds.
+        - PDF will be automatically linked to the original file.
+        - No additional API calls needed for conversion.
+        
+        **No need to specify file type parameter** - backend handles it automatically.
+        
+        **File storage directories**:
+        - Images → storage/images/
+        - Videos → storage/videos/
+        - Documents → storage/documents/
+        - PDFs → storage/pdfs/
+        - Others → storage/others/
+        
+        **Maximum file size**: 100MB
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File to upload (backend auto-detects type)
+                  example: (binary)
+      responses:
+         '201':
+           description: Upload successful
+           content:
+             application/json:
+               schema:
+                 type: object
+                 properties:
+                   code:
+                     type: integer
+                     example: 201
+                   message:
+                     type: string
+                     example: "上传成功"
+                   data:
+                     type: object
+                     properties:
+                       file:
+                         $ref: '#/components/schemas/File'
+           examples:
+             office_document:
+               summary: Office document uploaded with auto-conversion
+               value:
+                 code: 201
+                 message: "上传成功"
+                 data:
+                   file:
+                     id: 100
+                     filename: a1b2c3d4.docx
+                     original_filename: document.docx
+                     file_type: document
+                     file_type_name: 文档
+                     file_size: 102400
+                     file_path: storage/documents/a1b2c3d4.docx
+                     mime_type: application/vnd.openxmlformats-officedocument.wordprocessingml.document
+                     uploader_id: 1
+                     is_active: true
+                     created_at: "2026-04-03 10:30:00"
+                     pdf_file_id: 101
+                     pdf_url: storage/pdfs/a1b2c3d4.pdf
+             regular_file:
+               summary: Regular file uploaded
+               value:
+                 code: 201
+                 message: "上传成功"
+                 data:
+                   file:
+                     id: 50
+                     filename: a1b2c3d4.jpg
+                     original_filename: photo.jpg
+                     file_type: image
+                     file_type_name: 图片
+                     file_size: 51200
+                     file_path: storage/images/a1b2c3d4.jpg
+                     mime_type: image/jpeg
+                     uploader_id: 1
+                     is_active: true
+                     created_at: "2026-04-03 10:30:00"
+         '400':
+           description: Bad request
+           content:
+             application/json:
+               schema:
+                 type: object
+                 properties:
+                   code:
+                     type: integer
+                     example: 400
+                   message:
+                     type: string
+                     example: "没有上传文件"
+                   data:
+                     type: object
+                     nullable: true
+         '401':
+           description: Unauthorized
+           content:
+             application/json:
+               schema:
+                 type: object
+                 properties:
+                   code:
+                     type: integer
+                     example: 401
+                   message:
+                     type: string
+                     example: "未授权"
+                   data:
+                     type: object
+                     nullable: true
+ 
+  /api/v2/files/{file_id}:
+    get:
+      tags:
+        - 文件存储
+      summary: 获取文件信息
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: File ID
+      responses:
+        '200':
+          description: Get successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "获取成功"
+                  data:
+                    type: object
+                    properties:
+                      file:
+                        $ref: '#/components/schemas/File'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: File has been deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+ 
+    delete:
+      tags:
+        - 文件存储
+      summary: 删除文件
+      description: Delete a file. Only to file uploader can delete their own files.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: File ID
+      responses:
+        '200':
+          description: Delete successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "删除成功"
+                  data:
+                    type: object
+                    nullable: true
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No permission to delete this file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+ 
+  /api/v2/files/download/{file_id}:
+    get:
+      tags:
+        - 文件存储
+      summary: 下载文件
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: File ID
+      responses:
+        '200':
+          description: File content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              description: Original filename
+              schema:
+                type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: File has been deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+ 
+  /api/v2/files/serve/{file_id}:
+    get:
+      tags:
+        - 文件存储
+      summary: 访问文件（无需认证）
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: File ID
+      responses:
+        '200':
+          description: File content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Type:
+              description: MIME type
+              schema:
+                type: string
+        '404':
+          description: File not found
+          content:
+            text/plain:
+              schema:
+                type: string
+ 
+  /api/v2/files/{file_id}/url:
+    get:
+      tags:
+        - 文件存储
+      summary: 获取文件URL
+      description: Get a file URL for direct access, useful for frontend to display images or videos.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: File ID
+      responses:
+        '200':
+          description: Get successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "获取成功"
+                  data:
+                    type: object
+                    properties:
+                      file_id:
+                        type: integer
+                        example: 1
+                      file_url:
+                        type: string
+                        example: http://localhost:5000/api/v2/files/serve/1
+                      original_filename:
+                        type: string
+                        example: my-photo.jpg
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: File has been deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+ 
+  /api/v2/files/{file_id}/convert-to-pdf:
+    post:
+      tags:
+        - 文件存储
+      summary: 转换Office文档为PDF (DEPRECATED)
+      description: |
+        ⚠️ **DEPRECATED**: This endpoint is deprecated.
+        
+        Office documents are now **automatically converted to PDF during upload**.
+        Use `POST /api/v2/files/upload` for uploading files.
+        Use `GET /api/v2/files/{file_id}/preview` for previewing files.
+        
+        **Why deprecated?**:
+        - Auto-conversion during upload provides better user experience
+        - Frontend no longer needs to handle conversion logic
+        - PDF is always available immediately after upload
+        
+        **When to use**: Only for manual re-conversion if automatic conversion failed.
+      deprecated: true
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Office document file ID
+      responses:
+        '200':
+          description: Conversion successful
+          headers:
+            Deprecation:
+              schema:
+                type: string
+              example: "Warning: This endpoint is deprecated. Office files are automatically converted on upload."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "转换成功"
+                  data:
+                    type: object
+                    properties:
+                      pdf_file_id:
+                        type: integer
+                        description: PDF file ID
+                        example: 101
+                      pdf_url:
+                        type: string
+                        description: PDF access URL
+                        example: http://localhost:5000/api/v2/files/serve/101
+        '400':
+          description: Bad request or conversion failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/files/{file_id}/preview:
+    get:
+      tags:
+        - 文件存储
+      summary: 获取文件预览URL
+      description: |
+        Get preview URL for a file. Returns different preview types based on file type.
+        
+        **Preview Types**:
+        - **pdf**: Direct PDF preview (PDF files or auto-converted Office documents)
+        - **image**: Direct image preview (PNG, JPG, etc.)
+        
+        **Office Document Handling**:
+        - Office documents are automatically converted to PDF during upload.
+        - If PDF exists, returns PDF preview URL.
+        - If PDF conversion failed, returns error.
+        
+        **Use**: No conversion needed, simply call this endpoint to get preview URL.
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: File ID
+      responses:
+        '200':
+          description: Get successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "获取成功"
+                  data:
+                    type: object
+                    properties:
+                      file_id:
+                        type: integer
+                        description: File ID
+                        example: 100
+                      preview_url:
+                        type: string
+                        description: Preview URL
+                        example: http://localhost:5000/api/v2/files/serve/101
+                      preview_type:
+                        type: string
+                        description: Preview type
+                        enum:
+                          - pdf
+                          - image
+                        example: pdf
+          examples:
+            pdf_preview:
+              summary: PDF preview (converted Office document)
+              value:
+                code: 200
+                message: "获取成功"
+                data:
+                  file_id: 100
+                  preview_url: "http://localhost:5000/api/v2/files/serve/101"
+                  preview_type: "pdf"
+            image_preview:
+              summary: Image preview
+              value:
+                code: 200
+                message: "获取成功"
+                data:
+                  file_id: 50
+                  preview_url: "http://localhost:5000/api/v2/files/serve/50"
+                  preview_type: "image"
+        '400':
+          description: File type not supported for preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            not_supported:
+              summary: File type not supported
+              value:
+                code: 400
+                message: "此文件类型不支持预览"
+                data: null
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+ 
+  /api/v2/files:
+    get:
+      tags:
+        - 文件存储
+      summary: 获取文件列表
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 10
+          description: Items per page
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum:
+              - image
+              - video
+              - document
+              - other
+          description: File type filter
+        - name: keyword
+          in: query
+          schema:
+            type: string
+          description: Search keyword (filename)
+        - name: uploader_id
+          in: query
+          schema:
+            type: integer
+          description: Uploader ID
+      responses:
+        '200':
+          description: Get successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "获取成功"
+                  data:
+                    type: object
+                    properties:
+                      files:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/File'
+                      total:
+                        type: integer
+                        description: Total count
+                      page:
+                        type: integer
+                        description: Current page
+                      per_page:
+                        type: integer
+                        description: Items per page
+                      pages:
+                        type: integer
+                        description: Total pages
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+ 
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+ 
+  schemas:
+    File:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: File ID
+          example: 1
+        filename:
+          type: string
+          description: Stored filename (UUID generated)
+          example: a1b2c3d4e5f6.jpg
+        original_filename:
+          type: string
+          description: Original filename
+          example: my-photo.jpg
+        file_type:
+          type: string
+          description: File type (auto-detected by backend)
+          enum:
+            - image
+            - video
+            - document
+            - other
+          example: image
+        file_type_name:
+          type: string
+          description: File type name in Chinese (auto-detected by backend)
+          example: "图片"
+        file_size:
+          type: integer
+          description: File size in bytes
+          example: 1024000
+        file_path:
+          type: string
+          description: File storage path
+          example: storage/images/a1b2c3d4e5f6.jpg
+        mime_type:
+          type: string
+          description: MIME type
+          nullable: true
+          example: image/jpeg
+        uploader_id:
+          type: integer
+          description: Uploader ID
+          example: 4
+        is_active:
+          type: boolean
+          description: Is active
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          description: Created time
+          example: "2026-03-14 12:30:00"
+        pdf_file_id:
+          type: integer
+          description: PDF file ID (for Office documents that have been converted)
+          nullable: true
+          example: 101
+        pdf_url:
+          type: string
+          description: PDF file path (for Office documents that have been converted)
+          nullable: true
+          example: storage/pdfs/a1b2c3d4.pdf
+ 
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: Error code
+          example: 400
+        message:
+          type: string
+          description: Error message (in Chinese)
+          example: "请求参数错误"
+        data:
+          type: object
+          nullable: true
+          description: Error data (usually null)

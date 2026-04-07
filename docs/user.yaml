@@ -1,0 +1,802 @@
+openapi: 3.0.0
+info:
+  title: Learning Community Backend API
+  version: 2.0.0
+  description: 学习社区后端API文档 v2
+
+servers:
+  - url: http://localhost:5000
+    description: 本地开发服务器
+
+tags:
+  - name: 认证
+    description: 用户认证相关接口
+  - name: 用户
+    description: 用户管理相关接口
+  - name: 文件
+    description: 文件管理相关接口
+
+paths:
+  /api/v2/auth/register:
+    post:
+      tags:
+        - 认证
+      summary: 用户注册
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - phone
+                - password
+              properties:
+                username:
+                  type: string
+                  example: testuser
+                phone:
+                  type: string
+                  example: 13800138000
+                password:
+                  type: string
+                  example: 123456
+      responses:
+        '201':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 状态码，201表示创建成功
+                    example: 201
+                  message:
+                    type: string
+                    description: 响应消息
+                    example: 注册成功
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            example: 8
+                          username:
+                            type: string
+                            example: testuser
+                          phone:
+                            type: string
+                            example: 13988886666
+                          role_id:
+                            type: integer
+                            example: 4
+                            description: 4表示学生
+                          user_img:
+                            type: string
+                            example: ""
+                            description: 未上传头像时为空字符串
+                          created_at:
+                            type: string
+                            example: "2026-03-19 12:06:10"
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 错误码
+                    example: 400
+                  message:
+                    type: string
+                    description: 错误信息
+                    example: 请求参数错误
+                  data:
+                    type: object
+                    nullable: true
+                    description: 错误数据（通常为null）
+
+  /api/v2/auth/login:
+    post:
+      tags:
+        - 认证
+      summary: 用户登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+                - password
+              properties:
+                phone:
+                  type: string
+                  example: 13800138000
+                password:
+                  type: string
+                  example: 123456
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 状态码，200表示成功
+                    example: 200
+                  message:
+                    type: string
+                    description: 响应消息
+                    example: 登录成功
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        description: JWT Token
+                        example: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJyb2xlIjoxLCJleHAiOjE3NzM1ODc3NzQsImlhdCI6MTc3MzUwMTM3NH0.RwiH6WkdghmgIKV8p1-VlUViyJehddzgaon3aMkfDm8
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            example: 1
+                          username:
+                            type: string
+                            example: admin
+                          phone:
+                            type: string
+                            example: 13800138000
+                          role_id:
+                            type: integer
+                            example: 1
+                            description: 1表示超级管理员
+                          user_img:
+                            type: string
+                            example: ""
+                            description: 未上传头像时为空字符串
+                          created_at:
+                            type: string
+                            example: "2026-03-14 20:27:12"
+        '401':
+          description: 手机号或密码错误
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 错误码
+                    example: 401
+                  message:
+                    type: string
+                    description: 错误信息
+                    example: 手机号或密码错误
+                  data:
+                    type: object
+                    nullable: true
+                    description: 错误数据（通常为null）
+
+  /api/v2/auth/logout:
+    post:
+      tags:
+        - 认证
+      summary: 用户登出
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 登出成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 状态码，200表示成功
+                    example: 200
+                  message:
+                    type: string
+                    description: 响应消息
+                    example: 登出成功
+                  data:
+                    type: object
+                    nullable: true
+                    description: 响应数据
+
+  /api/v2/auth/me:
+    get:
+      tags:
+        - 认证
+      summary: 获取当前用户信息
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 状态码，200表示成功
+                    example: 200
+                  message:
+                    type: string
+                    description: 响应消息
+                    example: 获取成功
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        type: object
+                        properties:
+                          id:
+                           type: integer
+                           example: 1
+                          username:
+                           type: string
+                           example: admin
+                          phone:
+                           type: string
+                           example: 13800138000
+                          role_id:
+                           type: integer
+                           example: 1
+                          user_img:
+                           type: string
+                           example: ""
+                          created_at:
+                           type: string
+                           example: "2026-03-14 20:27:12"
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 错误码
+                    example: 401
+                  message:
+                    type: string
+                    description: 错误信息
+                    example: 未授权
+                  data:
+                    type: object
+                    nullable: true
+                    description: 错误数据（通常为null）
+
+  /api/v2/users:
+    get:
+      tags:
+        - 用户
+      summary: 获取用户列表
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: role
+          in: query
+          schema:
+            type: integer
+        - name: keyword
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 状态码，200表示成功
+                    example: 200
+                  message:
+                    type: string
+                    description: 响应消息
+                    example: 获取成功
+                  data:
+                    type: object
+                    properties:
+                      users:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: integer
+                              example: 1
+                            username:
+                              type: string
+                              example: admin
+                            phone:
+                              type: string
+                              example: 13800138000
+                            role_id:
+                              type: integer
+                              example: 1
+                              description: 1表示超级管理员
+                            user_img:
+                              type: string
+                              example: ""
+                            created_at:
+                              type: string
+                              example: "2026-03-14 20:27:12"
+                      total:
+                        type: integer
+                        description: 总数量
+                        example: 8
+                      page:
+                        type: integer
+                        description: 当前页码
+                        example: 1
+                      per_page:
+                        type: integer
+                        description: 每页数量
+                        example: 10
+                      pages:
+                        type: integer
+                        description: 总页数
+                        example: 1
+
+    post:
+      tags:
+        - 用户
+      summary: 创建用户
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - phone
+                - password
+              properties:
+                 username:
+                   type: string
+                 phone:
+                   type: string
+                 password:
+                   type: string
+                 role:
+                   type: integer
+                   description: 1:超级管理员, 2:管理员, 3:教师, 4:学生
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 状态码，201表示创建成功
+                    example: 201
+                  message:
+                    type: string
+                    description: 响应消息
+                    example: 用户创建成功
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            example: 9
+                          username:
+                            type: string
+                            example: newuser
+                          phone:
+                            type: string
+                            example: 13900000000
+                          role_id:
+                            type: integer
+                            example: 4
+                            description: 4表示学生
+                          user_img:
+                            type: string
+                            example: ""
+                          created_at:
+                            type: string
+                            example: "2026-03-19 12:10:00"
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 错误码
+                    example: 400
+                  message:
+                    type: string
+                    description: 错误信息
+                    example: 请求参数错误
+                  data:
+                    type: object
+                    nullable: true
+                    description: 错误数据（通常为null）
+
+  /api/v2/users/{user_id}:
+    get:
+      tags:
+        - 用户
+      summary: 获取用户详情
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 状态码，200表示成功
+                    example: 200
+                  message:
+                    type: string
+                    description: 响应消息
+                    example: 获取成功
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            example: 1
+                          username:
+                            type: string
+                            example: admin
+                          phone:
+                            type: string
+                            example: 13800138000
+                          role_id:
+                            type: integer
+                            example: 1
+                          user_img:
+                            type: string
+                            example: ""
+                          created_at:
+                            type: string
+                            example: "2026-03-14 20:27:12"
+          '404':
+            description: 用户不存在
+            content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 错误码
+                    example: 404
+                  message:
+                    type: string
+                    description: 错误信息
+                    example: 用户不存在
+                  data:
+                    type: object
+                    nullable: true
+                    description: 错误数据（通常为null）
+
+    put:
+      tags:
+        - 用户
+      summary: 更新用户
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+             schema:
+               type: object
+               properties:
+                 username:
+                   type: string
+                 phone:
+                   type: string
+                 role:
+                   type: integer
+                 password:
+                   type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 状态码，200表示成功
+                    example: 200
+                  message:
+                    type: string
+                    description: 响应消息
+                    example: 获取成功
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            example: 1
+                          username:
+                            type: string
+                            example: admin
+                          phone:
+                            type: string
+                            example: 13800138000
+                          role_id:
+                            type: integer
+                            example: 1
+                            description: 1表示超级管理员
+                          user_img:
+                            type: string
+                            example: ""
+                            description: 未上传头像时为空字符串
+                          created_at:
+                            type: string
+                            example: "2026-03-14 20:27:12"
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 错误码
+                    example: 400
+                  message:
+                    type: string
+                    description: 错误信息
+                    example: 请求参数错误
+                  data:
+                    type: object
+                    nullable: true
+                    description: 错误数据（通常为null）
+        '404':
+          description: 用户不存在
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 错误码
+                    example: 404
+                  message:
+                    type: string
+                    description: 错误信息
+                    example: 用户不存在
+                  data:
+                    type: object
+                    nullable: true
+                    description: 错误数据（通常为null）
+
+    delete:
+      tags:
+        - 用户
+      summary: 删除用户
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 状态码，200表示成功
+                    example: 200
+                  message:
+                    type: string
+                    description: 响应消息
+                    example: 用户删除成功
+                  data:
+                    type: object
+                    nullable: true
+                    description: 响应数据
+        '404':
+          description: 用户不存在
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: 错误码
+                    example: 404
+                  message:
+                    type: string
+                    description: 错误信息
+                    example: 用户不存在
+                  data:
+                    type: object
+                    nullable: true
+                    description: 错误数据（通常为null）
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Response:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 状态码，200表示成功
+          example: 200
+        message:
+          type: string
+          description: 响应消息
+          example: 操作成功
+        data:
+          type: object
+          nullable: true
+          description: 响应数据
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 错误码
+          example: 400
+        message:
+          type: string
+          description: 错误信息
+          example: 请求参数错误
+        data:
+          type: object
+          nullable: true
+          description: 错误数据（通常为null）
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 用户ID
+          example: 1
+        username:
+          type: string
+          description: 用户名
+          example: admin
+        phone:
+          type: string
+          description: 手机号
+          example: 13800138000
+        role_id:
+          type: integer
+          description: 角色ID（1:超级管理员, 2:管理员, 3:教师, 4:学生）
+          example: 1
+        user_img:
+          type: string
+          description: 用户头像URL（未上传时为空字符串）
+          nullable: true
+          example: ""
+        created_at:
+          type: string
+          description: 创建时间
+          format: date-time
+          example: "2026-03-14 20:27:12"
+
+    File:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 文件ID
+        filename:
+          type: string
+          description: 存储文件名（UUID格式）
+        original_filename:
+          type: string
+          description: 原始文件名
+        file_type:
+          type: string
+          description: 文件类型：image, video, document, other
+        file_type_name:
+          type: string
+          description: 文件类型中文名：图片、视频、文档、其他
+        file_size:
+          type: integer
+          description: 文件大小（字节）
+        file_path:
+          type: string
+          description: 文件存储路径
+        mime_type:
+          type: string
+          nullable: true
+          description: MIME类型
+        uploader_id:
+          type: integer
+          description: 上传者用户ID
+        is_active:
+          type: boolean
+          description: 是否有效
+        created_at:
+          type: string
+          description: 创建时间
+          format: date-time

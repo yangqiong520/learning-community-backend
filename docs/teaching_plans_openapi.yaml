@@ -1,0 +1,477 @@
+openapi: 3.0.0
+info:
+  title: 教学计划 API
+  version: v2.0.0
+  description: 教学计划管理接口文档
+
+servers:
+  - url: http://localhost:5000
+    description: 本地开发环境
+  - url: /api/v2
+    description: 生产环境
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    TeachingPlan:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 教学计划唯一标识
+          example: 1
+        title:
+          type: string
+          description: 标题
+          example: 教学计划标题
+        content:
+          type: string
+          description: 内容
+          example: 教学计划详细内容
+        file_id:
+          type: integer
+          description: 文档文件ID
+          example: 117
+          nullable: true
+        file_url:
+          type: string
+          description: 文档文件链接
+          example: /api/v2/files/serve/117
+        image_file_id:
+          type: integer
+          description: 图片文件ID
+          example: 116
+          nullable: true
+        imgurl:
+          type: string
+          description: 图片链接
+          example: /api/v2/files/serve/116
+        uploader:
+          type: string
+          description: 上传者用户名
+          example: 张三
+        time:
+          type: string
+          description: 上传时间
+          example: 2024-03-22 13:00:00
+        like:
+          type: boolean
+          description: 是否点赞/收藏
+          example: true
+        pdf_file_id:
+          type: integer
+          description: PDF文件ID（仅Office文档有此字段）
+          example: 118
+          nullable: true
+        pdf_url:
+          type: string
+          description: PDF文件链接（仅Office文档有此字段）
+          example: /api/v2/files/serve/118
+          nullable: true
+
+    TeachingPlansResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: 获取成功
+        data:
+          type: object
+          properties:
+            teaching_plans:
+              type: array
+              items:
+                $ref: '#/components/schemas/TeachingPlan'
+            total:
+              type: integer
+              example: 10
+            page:
+              type: integer
+              example: 1
+            per_page:
+              type: integer
+              example: 10
+            pages:
+              type: integer
+              example: 1
+
+    TeachingPlanResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: 操作成功
+        data:
+          type: object
+          properties:
+            teaching_plan:
+              $ref: '#/components/schemas/TeachingPlan'
+
+    TeachingPlanWithLikeResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: 操作成功
+        data:
+          type: object
+          properties:
+            teaching_plan:
+              $ref: '#/components/schemas/TeachingPlan'
+            is_liked:
+              type: boolean
+              example: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: 请求参数错误
+        data:
+          type: object
+          nullable: true
+
+paths:
+  /api/v2/teaching_plans/upload:
+    post:
+      tags:
+        - 教学计划
+      summary: 创建教学计划
+      description: 上传教学计划的文档和图片
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - title
+                - document
+                - image
+              properties:
+                title:
+                  type: string
+                  description: 标题
+                  example: 教学计划标题
+                content:
+                  type: string
+                  description: 内容（不提供时自动从文档提取）
+                  example: 教学计划详细内容
+                document:
+                  type: string
+                  format: binary
+                  description: 文档文件（PDF、Word等）
+                image:
+                  type: string
+                  format: binary
+                  description: 图片文件（PNG、JPG等）
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeachingPlanResponse'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/teaching_plans:
+    get:
+      tags:
+        - 教学计划
+      summary: 获取教学计划列表
+      description: 分页获取教学计划列表，支持关键词搜索
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: keyword
+          in: query
+          description: 搜索关键词（搜索标题和内容）
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeachingPlansResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/teaching_plans/:
+    get:
+      tags:
+        - 教学计划
+      summary: 获取教学计划列表（别名）
+      description: 分页获取教学计划列表，支持关键词搜索
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: keyword
+          in: query
+          description: 搜索关键词（搜索标题和内容）
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeachingPlansResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/teaching_plans/{id}:
+    get:
+      tags:
+        - 教学计划
+      summary: 获取单个教学计划
+      description: 根据ID获取教学计划详情
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 教学计划ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeachingPlanResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 教学计划不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - 教学计划
+      summary: 更新教学计划
+      description: 更新教学计划的标题和内容（需要教师或管理员权限）
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 教学计划ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  description: 标题
+                  example: 更新后的标题
+                content:
+                  type: string
+                  description: 内容
+                  example: 更新后的内容
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeachingPlanResponse'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 教学计划不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - 教学计划
+      summary: 删除教学计划
+      description: 软删除教学计划（需要教师或管理员权限）
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 教学计划ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: 删除成功
+                  data:
+                    type: object
+                    nullable: true
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 教学计划不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/teaching_plans/{id}/like:
+    post:
+      tags:
+        - 教学计划
+      summary: 点赞/取消点赞
+      description: 切换教学计划的点赞/收藏状态
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 教学计划ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeachingPlanWithLikeResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 教学计划不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+tags:
+  - name: 教学计划
+    description: 教学计划管理相关接口

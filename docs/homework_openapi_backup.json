@@ -1,0 +1,1993 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "作业库系统API",
+    "description": "作业库系统后端接口文档，包含学生端和教师端的所有作业相关功能",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "description": "本地开发服务器",
+      "url": "http://localhost:5000"
+    },
+    {
+      "description": "局域网服务器",
+      "url": "http://192.168.8.190:5000"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT Token认证，需要在请求头中携带 Authorization: Bearer <token>"
+      }
+    },
+    "schemas": {
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "操作成功"
+          },
+          "data": {
+            "type": "object"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "message": {
+            "type": "string",
+            "example": "操作失败"
+          }
+        }
+      },
+      "Course": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "数字特效"
+          },
+          "code": {
+            "type": "string",
+            "example": "SE2024"
+          },
+          "teacher_id": {
+            "type": "integer",
+            "example": 10
+          },
+          "description": {
+            "type": "string",
+            "example": "数字特效课程介绍"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01 10:00:00"
+          },
+          "is_active": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "HomeworkType": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "course_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "平时作业1"
+          },
+          "content": {
+            "type": "string",
+            "example": "完成数字特效的基础练习"
+          },
+          "teacher_id": {
+            "type": "integer",
+            "example": 10
+          },
+          "is_active": {
+            "type": "boolean",
+            "example": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01 10:00:00"
+          }
+        }
+      },
+      "Homework": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "course_name": {
+            "type": "string",
+            "example": "数字特效"
+          },
+          "type_name": {
+            "type": "string",
+            "example": "平时作业1"
+          },
+          "version": {
+            "type": "integer",
+            "example": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "submitted",
+              "returned",
+              "excellent",
+              "problem"
+            ],
+            "example": "submitted"
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01 10:00:00"
+          }
+        }
+      },
+      "HomeworkVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "homework_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "version_number": {
+            "type": "integer",
+            "example": 1
+          },
+          "file_url": {
+            "type": "string",
+            "example": "/api/v2/files/serve/123"
+          },
+          "pdf_url": {
+            "type": "string",
+            "example": "/api/v2/files/serve/456"
+          },
+          "img_url": {
+            "type": "string",
+            "example": "/api/v2/files/serve/789"
+          },
+          "evaluation": {
+            "type": "string",
+            "example": "优秀的作品"
+          },
+          "score": {
+            "type": "string",
+            "example": "A"
+          },
+          "is_redo": {
+            "type": "boolean",
+            "example": false
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01 10:00:00"
+          }
+        }
+      },
+      "ExcellentHomework": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "title": {
+            "type": "string",
+            "example": "数字特效的平时作业1"
+          },
+          "student_name": {
+            "type": "string",
+            "example": "张三"
+          },
+          "content": {
+            "type": "string",
+            "example": "/path/to/file"
+          },
+          "file_url": {
+            "type": "string",
+            "example": "/api/v2/files/serve/123"
+          },
+          "imgurl": {
+            "type": "string",
+            "example": "/api/v2/files/serve/789"
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01 10:00:00"
+          },
+          "score": {
+            "type": "string",
+            "example": "A"
+          },
+          "like": {
+            "type": "boolean",
+            "example": true
+          },
+          "likes_count": {
+            "type": "integer",
+            "example": 10
+          }
+        }
+      },
+      "ProblemHomework": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "homework_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "student_id": {
+            "type": "integer",
+            "example": 5
+          },
+          "student_name": {
+            "type": "string",
+            "example": "张三"
+          },
+          "course_name": {
+            "type": "string",
+            "example": "数字特效"
+          },
+          "type_name": {
+            "type": "string",
+            "example": "平时作业1"
+          },
+          "version": {
+            "type": "integer",
+            "example": 1
+          },
+          "file_url": {
+            "type": "string",
+            "example": "/api/v2/files/serve/123"
+          },
+          "pdf_url": {
+            "type": "string",
+            "example": "/api/v2/files/serve/456"
+          },
+          "evaluation": {
+            "type": "string",
+            "example": "需要改进"
+          },
+          "score": {
+            "type": "string",
+            "example": "C"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01 10:00:00"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/v2/v2/courses": {
+      "post": {
+        "tags": [
+          "课程管理"
+        ],
+        "summary": "创建课程",
+        "description": "教师创建课程（仅教师）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "数字特效",
+                    "description": "课程名称"
+                  },
+                  "code": {
+                    "type": "string",
+                    "example": "SE2024",
+                    "description": "课程代码"
+                  },
+                  "description": {
+                    "type": "string",
+                    "example": "数字特效课程介绍",
+                    "description": "课程描述"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "创建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer",
+                              "example": 1
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "课程管理"
+        ],
+        "summary": "获取课程列表",
+        "description": "教师获取自己的课程列表（仅教师）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Course"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/v2/courses/{course_id}": {
+      "put": {
+        "tags": [
+          "课程管理"
+        ],
+        "summary": "更新课程",
+        "description": "更新课程信息（仅教师）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "课程ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "数字特效"
+                  },
+                  "code": {
+                    "type": "string",
+                    "example": "SE2024"
+                  },
+                  "description": {
+                    "type": "string",
+                    "example": "数字特效课程介绍"
+                  },
+                  "is_active": {
+                    "type": "boolean",
+                    "example": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "课程不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "课程管理"
+        ],
+        "summary": "删除课程",
+        "description": "删除课程（仅教师）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "课程ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "课程不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "课程管理"
+        ],
+        "summary": "获取课程详情",
+        "description": "获取单个课程的详细信息",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "课程ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/Course"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "课程不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/v2/homeworks/types": {
+      "post": {
+        "tags": [
+          "作业类型管理"
+        ],
+        "summary": "发布作业类型",
+        "description": "教师发布作业类型（仅教师）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "course_id",
+                  "name",
+                  "content"
+                ],
+                "properties": {
+                  "course_id": {
+                    "type": "integer",
+                    "example": 1,
+                    "description": "课程ID"
+                  },
+                  "name": {
+                    "type": "string",
+                    "example": "平时作业1",
+                    "description": "作业类型名称"
+                  },
+                  "content": {
+                    "type": "string",
+                    "example": "完成数字特效的基础练习",
+                    "description": "作业内容"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "发布成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer",
+                              "example": 1
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "课程不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "作业类型管理"
+        ],
+        "summary": "获取作业类型列表",
+        "description": "教师获取自己发布的作业类型列表，学生获取可提交的作业类型列表",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "oneOf": [
+                              {
+                                "$ref": "#/components/schemas/HomeworkType"
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "course_id": {
+                                    "type": "integer",
+                                    "example": 1
+                                  },
+                                  "course_name": {
+                                    "type": "string",
+                                    "example": "数字特效"
+                                  },
+                                  "type_id": {
+                                    "type": "integer",
+                                    "example": 1
+                                  },
+                                  "type_name": {
+                                    "type": "string",
+                                    "example": "平时作业1"
+                                  },
+                                  "content": {
+                                    "type": "string",
+                                    "example": "完成数字特效的基础练习"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/v2/homeworks/types/{type_id}": {
+      "put": {
+        "tags": [
+          "作业类型管理"
+        ],
+        "summary": "修改作业类型",
+        "description": "修改作业类型信息（仅教师）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "作业类型ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "平时作业1"
+                  },
+                  "content": {
+                    "type": "string",
+                    "example": "完成数字特效的基础练习"
+                  },
+                  "is_active": {
+                    "type": "boolean",
+                    "example": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "修改成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "作业类型不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "作业类型管理"
+        ],
+        "summary": "删除/下架作业类型",
+        "description": "删除/下架作业类型（仅教师）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "作业类型ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "作业类型不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/v2/homeworks": {
+      "post": {
+        "tags": [
+          "学生端作业"
+        ],
+        "summary": "提交作业",
+        "description": "学生提交作业（仅学生）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "homework_type_id",
+                  "file_id"
+                ],
+                "properties": {
+                  "homework_type_id": {
+                    "type": "integer",
+                    "example": 1,
+                    "description": "作业类型ID"
+                  },
+                  "file_id": {
+                    "type": "integer",
+                    "example": 123,
+                    "description": "文件ID"
+                  },
+                  "content": {
+                    "type": "string",
+                    "example": "这是我的作业说明",
+                    "description": "作业内容说明"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "提交成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer",
+                              "example": 1
+                            },
+                            "homework_type_id": {
+                              "type": "integer",
+                              "example": 1
+                            },
+                            "version": {
+                              "type": "integer",
+                              "example": 1
+                            },
+                            "status": {
+                              "type": "string",
+                              "example": "submitted"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足或作业未被退回",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "作业类型不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "学生端作业"
+        ],
+        "summary": "获取我的作业列表",
+        "description": "学生获取自己的作业列表（仅学生）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Homework"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/v2/homeworks/{homework_id}/versions": {
+      "get": {
+        "tags": [
+          "学生端作业"
+        ],
+        "summary": "查看作业历史版本",
+        "description": "学生查看自己某个作业的所有历史版本（仅学生）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "homework_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "作业ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/HomeworkVersion"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "作业不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/v2/homeworks/students": {
+      "get": {
+        "tags": [
+          "教师端作业"
+        ],
+        "summary": "查看学生作业列表",
+        "description": "教师查看学生提交的作业列表（仅教师）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "课程ID（可选）"
+          },
+          {
+            "name": "homework_type_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "作业类型ID（可选）"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "页码"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10
+            },
+            "description": "每页数量"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "homework_id": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "student_id": {
+                                "type": "integer",
+                                "example": 5
+                              },
+                              "student_name": {
+                                "type": "string",
+                                "example": "张三"
+                              },
+                              "course_name": {
+                                "type": "string",
+                                "example": "数字特效"
+                              },
+                              "type_name": {
+                                "type": "string",
+                                "example": "平时作业1"
+                              },
+                              "version": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "status": {
+                                "type": "string",
+                                "example": "submitted"
+                              },
+                              "file_url": {
+                                "type": "string",
+                                "example": "/api/v2/files/serve/123"
+                              },
+                              "pdf_url": {
+                                "type": "string",
+                                "example": "/api/v2/files/serve/456"
+                              },
+                              "submitted_at": {
+                                "type": "string",
+                                "example": "2024-01-01 10:00:00"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/v2/homeworks/students/{student_id}": {
+      "get": {
+        "tags": [
+          "教师端作业"
+        ],
+        "summary": "查看特定学生的作业",
+        "description": "教师查看特定学生的所有作业（仅教师）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "student_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "学生ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "course_name": {
+                                "type": "string",
+                                "example": "数字特效"
+                              },
+                              "type_name": {
+                                "type": "string",
+                                "example": "平时作业1"
+                              },
+                              "version": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "file_url": {
+                                "type": "string",
+                                "example": "/api/v2/files/serve/123"
+                              },
+                              "pdf_url": {
+                                "type": "string",
+                                "example": "/api/v2/files/serve/456"
+                              },
+                              "evaluation": {
+                                "type": "string",
+                                "example": "优秀的作品"
+                              },
+                              "score": {
+                                "type": "string",
+                                "example": "A"
+                              },
+                              "is_redo": {
+                                "type": "boolean",
+                                "example": false
+                              },
+                              "submitted_at": {
+                                "type": "string",
+                                "example": "2024-01-01 10:00:00"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/v2/homeworks/{homework_id}/evaluate": {
+      "put": {
+        "tags": [
+          "教师端作业"
+        ],
+        "summary": "批改作业",
+        "description": "教师批改作业，可以评价、打分、要求重做、标记优秀/问题（仅教师）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "homework_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "作业ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "evaluation": {
+                    "type": "string",
+                    "example": "优秀的作品",
+                    "description": "教师评语"
+                  },
+                  "score": {
+                    "type": "string",
+                    "example": "A",
+                    "description": "分数（灵活格式，如95、A、优秀等）"
+                  },
+                  "is_redo": {
+                    "type": "boolean",
+                    "example": false,
+                    "description": "是否要求重做"
+                  },
+                  "mark_type": {
+                    "type": "string",
+                    "enum": [
+                      "excellent",
+                      "problem",
+                      "none"
+                    ],
+                    "example": "excellent",
+                    "description": "标记类型：excellent=优秀作业, problem=问题作业, none=不标记"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "批改成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "作业不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/v2/homeworks/excellent": {
+      "get": {
+        "tags": [
+          "优秀作业"
+        ],
+        "summary": "获取优秀作业列表",
+        "description": "获取所有优秀作业列表（学生和教师都可以访问）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "页码"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10
+            },
+            "description": "每页数量"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/ExcellentHomework"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/v2/homeworks/excellent/{excellent_id}/like": {
+      "post": {
+        "tags": [
+          "优秀作业"
+        ],
+        "summary": "点赞/取消点赞优秀作业",
+        "description": "点赞或取消点赞优秀作业（学生和教师都可以操作）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "excellent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "优秀作业ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "like": {
+                              "type": "boolean",
+                              "example": true
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "优秀作业不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/v2/homeworks/excellent/{excellent_id}": {
+      "delete": {
+        "tags": [
+          "优秀作业"
+        ],
+        "summary": "取消优秀作业标记",
+        "description": "教师取消优秀作业标记（仅教师）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "excellent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "优秀作业ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取消成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "优秀作业不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/v2/homeworks/favorites": {
+      "get": {
+        "tags": [
+          "收藏管理"
+        ],
+        "summary": "获取我的收藏列表",
+        "description": "获取用户收藏的优秀作业列表（学生和教师都可以访问）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "页码"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10
+            },
+            "description": "每页数量"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "allOf": [
+                              {
+                                "$ref": "#/components/schemas/ExcellentHomework"
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "collected_at": {
+                                    "type": "string",
+                                    "example": "2024-01-01 10:00:00",
+                                    "description": "收藏时间"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/v2/homeworks/problem": {
+      "get": {
+        "tags": [
+          "问题作业"
+        ],
+        "summary": "获取问题作业列表",
+        "description": "教师获取自己标记的问题作业列表（仅教师）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "页码"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10
+            },
+            "description": "每页数量"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "获取成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/ProblemHomework"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/v2/homeworks/problem/{problem_id}": {
+      "delete": {
+        "tags": [
+          "问题作业"
+        ],
+        "summary": "取消问题作业标记",
+        "description": "教师取消问题作业标记（仅教师）",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "problem_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "问题作业ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取消成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "问题作业不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "课程管理",
+      "description": "课程的增删改查接口（仅教师）"
+    },
+    {
+      "name": "作业类型管理",
+      "description": "作业类型的发布、修改、删除和查询接口"
+    },
+    {
+      "name": "学生端作业",
+      "description": "学生提交作业、查看作业列表和历史版本的接口（仅学生）"
+    },
+    {
+      "name": "教师端作业",
+      "description": "教师查看学生作业和批改作业的接口（仅教师）"
+    },
+    {
+      "name": "优秀作业",
+      "description": "优秀作业的查看、点赞、取消标记接口（学生和教师都可以访问）"
+    },
+    {
+      "name": "问题作业",
+      "description": "问题作业的查看和取消标记接口（仅教师）"
+    },
+    {
+      "name": "收藏管理",
+      "description": "用户收藏优秀作业的查看接口（学生和教师都可以访问）"
+    }
+  ]
+}
