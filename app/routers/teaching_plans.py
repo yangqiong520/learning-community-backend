@@ -286,3 +286,45 @@ def toggle_like_teaching_plan(teaching_plan_id):
         'teaching_plan': teaching_plan.to_dict(request.current_user_id),
         'is_liked': is_liked
     })
+
+@teaching_bp.route('/favorites', methods=['GET'])
+@token_required
+def get_teaching_plan_favorites():
+    """获取当前用户收藏的教学计划列表"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        
+        # 查询用户收藏的教学计划，按收藏时间倒序，支持分页
+        likes = Like.query.filter(
+            Like.user_id == request.current_user_id,
+            Like.teaching_plan_id != None
+        ).order_by(Like.created_at.desc()).paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False
+        )
+        
+        # 构建结果列表
+        result = []
+        for like in likes.items:
+            if like.teaching_plan_id:
+                teaching_plan = TeachingPlan.query.get(like.teaching_plan_id)
+                if teaching_plan:
+                    item = teaching_plan.to_dict(request.current_user_id)
+                    # 添加收藏时间
+                    if like.created_at:
+                        item['favorite_time'] = f"{like.created_at.year}.{like.created_at.month}.{like.created_at.day}"
+                    else:
+                        item['favorite_time'] = None
+                    result.append(item)
+        
+        return success_response('获取收藏列表成功', {
+            'teaching_plans': result,
+            'total': likes.total,
+            'page': page,
+            'per_page': per_page,
+            'pages': likes.pages
+        })
+    except Exception as e:
+        return error_response(f'获取收藏列表失败: {str(e)}')

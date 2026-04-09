@@ -3,7 +3,7 @@ from libs.db import db
 from app.models.training_program import TrainingProgram
 from app.models.like import Like
 from libs.jwt_auth import token_required, role_required
-from libs.response import success_response, created_response, bad_request_response, not_found_response, forbidden_response
+from libs.response import success_response, created_response, bad_request_response, not_found_response, forbidden_response, error_response
 from app.models.file import File as FileModel
 from app.utils.simple_document_extractor import extract_document_content_simple, is_supported_document
 from app.utils.office_converter import OfficeToPDFConverter
@@ -383,3 +383,45 @@ def toggle_collect(training_program_id):
     db.session.commit()
 
     return success_response('操作成功', {'like': is_liked})
+
+@training_bp.route('/favorites', methods=['GET'])
+@token_required
+def get_training_program_favorites():
+    """获取当前用户收藏的培养方案列表"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        
+        # 查询用户收藏的培养方案，按收藏时间倒序，支持分页
+        likes = Like.query.filter(
+            Like.user_id == request.current_user_id,
+            Like.training_program_id != None
+        ).order_by(Like.created_at.desc()).paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False
+        )
+        
+        # 构建结果列表
+        result = []
+        for like in likes.items:
+            if like.training_program_id:
+                training_program = TrainingProgram.query.get(like.training_program_id)
+                if training_program:
+                    item = training_program.to_dict(request.current_user_id)
+                    # 添加收藏时间
+                    if like.created_at:
+                        item['favorite_time'] = f"{like.created_at.year}.{like.created_at.month}.{like.created_at.day}"
+                    else:
+                        item['favorite_time'] = None
+                    result.append(item)
+        
+        return success_response('获取收藏列表成功', {
+            'training_programs': result,
+            'total': likes.total,
+            'page': page,
+            'per_page': per_page,
+            'pages': likes.pages
+        })
+    except Exception as e:
+        return error_response(f'获取收藏列表失败: {str(e)}')

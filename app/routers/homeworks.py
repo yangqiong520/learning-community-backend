@@ -468,18 +468,41 @@ def like_excellent_homework(excellent_id):
 @homework_bp.route('/favorites', methods=['GET'])
 @token_required
 def get_favorites():
+    """获取当前用户收藏的优秀作业列表"""
     try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        
+        # 查询用户收藏的优秀作业，按收藏时间倒序，支持分页
         likes = HomeworkLike.query.filter_by(
             user_id=request.current_user_id,
             is_liked=True
-        ).all()
+        ).order_by(HomeworkLike.created_at.desc()).paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False
+        )
         
+        # 构建结果列表
         result = []
-        for like in likes:
-            excellent_homework = ExcellentHomework.query.get(like.excellent_homework_id)
-            if excellent_homework:
-                result.append(excellent_homework.to_dict(user_id=request.current_user_id))
+        for like in likes.items:
+            if like.excellent_homework_id:
+                excellent_homework = ExcellentHomework.query.get(like.excellent_homework_id)
+                if excellent_homework:
+                    item = excellent_homework.to_dict(user_id=request.current_user_id)
+                    # 添加收藏时间
+                    if like.created_at:
+                        item['favorite_time'] = f"{like.created_at.year}.{like.created_at.month}.{like.created_at.day}"
+                    else:
+                        item['favorite_time'] = None
+                    result.append(item)
         
-        return success_response('获取收藏列表成功', result)
+        return success_response('获取收藏列表成功', {
+            'excellent_homeworks': result,
+            'total': likes.total,
+            'page': page,
+            'per_page': per_page,
+            'pages': likes.pages
+        })
     except Exception as e:
         return error_response(f'获取收藏列表失败: {str(e)}')
