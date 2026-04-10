@@ -1,0 +1,319 @@
+openapi: 3.0.0
+info:
+  title: 我的收获 API
+  description: 学生端个人中心-我的收获接口文档
+  version: 1.0.0
+servers:
+  - url: http://127.0.0.1:5000
+    description: 本地开发服务器
+  - url: http://192.168.8.190:5000
+    description: 局域网服务器
+
+paths:
+  /api/v2/harvests:
+    get:
+      tags:
+        - 我的收获
+      summary: 获取收获列表
+      description: 获取当前用户的收获列表，支持分页
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          description: 每页数量
+          required: false
+          schema:
+            type: integer
+            default: 12
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: 获取成功
+                  data:
+                    type: object
+                    properties:
+                      harvests:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Harvest'
+                      total:
+                        type: integer
+                        example: 15
+                      page:
+                        type: integer
+                        example: 1
+                      per_page:
+                        type: integer
+                        example: 12
+                      pages:
+                        type: integer
+                        example: 2
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - 我的收获
+      summary: 创建收获
+      description: 创建新的收获记录
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - content
+              properties:
+                title:
+                  type: string
+                  description: 标题
+                  minLength: 1
+                  maxLength: 255
+                  example: 学习数据库的感悟
+                content:
+                  type: string
+                  description: 收获感言（支持Markdown格式）
+                  minLength: 1
+                  maxLength: 50000
+                  example: 通过这周的学习，我深刻理解了数据库设计的重要性。SQL优化、索引设计等知识让我受益匪浅。
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: 发布成功
+                  data:
+                    type: object
+                    properties:
+                      harvest:
+                        $ref: '#/components/schemas/Harvest'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v2/harvests/{harvest_id}:
+    get:
+      tags:
+        - 我的收获
+      summary: 获取收获详情
+      description: 获取指定收获的详细信息
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: harvest_id
+          in: path
+          description: 收获ID
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: 获取成功
+                  data:
+                    type: object
+                    properties:
+                      harvest:
+                        $ref: '#/components/schemas/Harvest'
+        '403':
+          description: 无权访问
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 收获不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - 我的收获
+      summary: 删除收获
+      description: 删除指定的收获记录
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: harvest_id
+          in: path
+          description: 收获ID
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: 删除成功
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '403':
+          description: 无权删除
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 收获不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: 服务器错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT认证，需要在请求头中携带Authorization字段
+
+  schemas:
+    Harvest:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 收获ID
+          example: 1
+        title:
+          type: string
+          description: 标题
+          example: 学习数据库的感悟
+        content:
+          type: string
+          description: 收获感言内容（支持Markdown格式）
+          example: 通过这周的学习，我深刻理解了数据库设计的重要性。SQL优化、索引设计等知识让我受益匪浅。
+        created_at:
+          type: string
+          description: 创建时间（格式：YYYY.M.D）
+          example: 2026.4.10
+      required:
+        - id
+        - title
+        - content
+        - created_at
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 错误码
+          example: 400
+        message:
+          type: string
+          description: 错误信息
+          example: 请求参数错误
+        data:
+          type: object
+          description: 数据（错误时为null）
+          nullable: true
+          example: null
+      required:
+        - code
+        - message
+        - data
+
+tags:
+  - name: 我的收获
+    description: 学生端个人中心-我的收获相关接口
