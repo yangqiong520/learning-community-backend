@@ -12,7 +12,8 @@ courses_bp = Blueprint('courses', __name__)
 def create_course():
     try:
         user = User.query.get(request.current_user_id)
-        if user.role != User.ROLE_TEACHER:
+        # 超级管理员、管理员、教师都可以创建课程
+        if user.role not in [User.ROLE_SUPER_ADMIN, User.ROLE_ADMIN, User.ROLE_TEACHER]:
             return error_response('仅教师可创建课程', 403)
 
         data = request.get_json()
@@ -121,13 +122,19 @@ def get_courses():
     try:
         user = User.query.get(request.current_user_id)
         
+        # 超级管理员、管理员、教师都可以查看课程列表
+        if user.role not in [User.ROLE_SUPER_ADMIN, User.ROLE_ADMIN, User.ROLE_TEACHER]:
+            return error_response('仅教师可查看课程列表', 403)
+        
         if user.role == User.ROLE_TEACHER:
+            # 教师只能看到自己创建的课程
             courses = Course.query.filter_by(
                 teacher_id=request.current_user_id,
                 is_active=True
             ).order_by(Course.created_at.desc()).all()
         else:
-            return error_response('仅教师可查看课程列表', 403)
+            # 超级管理员和管理员可以看到所有课程
+            courses = Course.query.filter_by(is_active=True).order_by(Course.created_at.desc()).all()
 
         result = [course.to_dict() for course in courses]
         return success_response('获取课程列表成功', result)

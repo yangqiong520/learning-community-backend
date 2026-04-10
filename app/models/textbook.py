@@ -2,6 +2,7 @@ from libs.db import db
 from datetime import datetime
 from app.models.like import Like
 from app.models.file import File
+from app.models.user import User
 
 class Textbook(db.Model):
     __tablename__ = 'textbooks'
@@ -26,7 +27,7 @@ class Textbook(db.Model):
                 textbook_id=self.id,
                 user_id=user_id
             ).first() is not None
-
+        
         result = {
             'id': self.id,
             'document_file_id': self.document_file_id,
@@ -35,10 +36,16 @@ class Textbook(db.Model):
             'imgurl': f'/api/v2/files/serve-image/{self.image_file_id}' if self.image_file_id else '',
             'title': self.title,
             'content': self.content,
-            'uploader': self.uploader.username if self.uploader else 'Unknown',
             'time': self.created_at.strftime('%Y-%m-%d') if self.created_at else None,
             'like': is_liked
         }
+        
+        # 避免直接使用 User 模型，延迟加载 uploader 信息
+        uploader = 'Unknown'
+        if self.uploader_id:
+            from app.models.user import User
+            uploader_user = User.query.get(self.uploader_id)
+            uploader = uploader_user.username if uploader_user else 'Unknown'
 
         # 添加PDF文件信息
         if self.document_file and self.document_file.pdf_file_id:

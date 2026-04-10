@@ -20,11 +20,7 @@ class Like(db.Model):
         db.UniqueConstraint('textbook_id', 'user_id', name='unique_textbook_like'),
         db.UniqueConstraint('courseware_id', 'user_id', name='unique_courseware_like'),
         db.CheckConstraint(
-            '(regulation_id IS NOT NULL AND training_program_id IS NULL AND teaching_plan_id IS NULL AND textbook_id IS NULL AND courseware_id IS NULL) OR '
-            '(regulation_id IS NULL AND training_program_id IS NOT NULL AND teaching_plan_id IS NULL AND textbook_id IS NULL AND courseware_id IS NULL) OR '
-            '(regulation_id IS NULL AND training_program_id IS NULL AND teaching_plan_id IS NOT NULL AND textbook_id IS NULL AND courseware_id IS NOT NULL) OR '
-            '(regulation_id IS NULL AND training_program_id IS NULL AND teaching_plan_id IS NULL AND textbook_id IS NOT NULL AND courseware_id IS NOT NULL) OR '
-            '(regulation_id IS NULL AND training_program_id IS NULL AND teaching_plan_id IS NULL AND textbook_id IS NOT NULL AND courseware_id IS NOT NULL)',
+            '(regulation_id IS NOT NULL) + (training_program_id IS NOT NULL) + (teaching_plan_id IS NOT NULL) + (textbook_id IS NOT NULL) + (courseware_id IS NOT NULL) = 1',
             name='check_one_target'
             )
         )

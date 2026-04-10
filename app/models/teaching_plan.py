@@ -22,11 +22,17 @@ class TeachingPlan(db.Model):
     def to_dict(self, user_id=None):
         """转换为字典格式"""
         from app.models.like import Like
-
+        
         file_file = File.query.get(self.file_file_id) if self.file_file_id else None
         image_file = File.query.get(self.image_file_id) if self.image_file_id else None
-        uploader = User.query.get(self.uploader_id) if self.uploader_id else None
-
+        
+         # 避免直接使用 User 模型，延迟加载 uploader 信息
+        uploader = None
+        if self.uploader_id:
+            from app.models.user import User
+            uploader_user = User.query.get(self.uploader_id)
+            uploader = uploader_user.username if uploader_user else 'Unknown'
+        
         is_liked = Like.query.filter_by(
             teaching_plan_id=self.id,
             user_id=user_id
@@ -40,7 +46,7 @@ class TeachingPlan(db.Model):
             'file_url': f'/api/v2/files/serve/{file_file.id}' if file_file else '',
             'image_file_id': image_file.id if image_file else None,
             'imgurl': f'/api/v2/files/serve-image/{image_file.id}' if image_file else '',
-            'uploader': uploader.username if uploader else '',
+            'uploader': uploader,
             'time': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else '',
             'like': is_liked
         }

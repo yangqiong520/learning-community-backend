@@ -8,6 +8,7 @@ from app.models.like import Like
 from app.models.file import File as FileModel
 from app.utils.simple_document_extractor import extract_document_content_simple, is_supported_document
 from app.utils.office_converter import OfficeToPDFConverter
+from app.utils.pdf_to_image import PDFToImageConverter
 from libs.jwt_auth import token_required, role_required
 from libs.response import success_response, created_response, bad_request_response, not_found_response, forbidden_response, error_response
 
@@ -15,6 +16,9 @@ textbook_bp = Blueprint('textbooks', __name__, url_prefix='/api/v2/textbooks')
 
 UPLOAD_FOLDER = 'storage'
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+
+converter = OfficeToPDFConverter()
+img_converter = PDFToImageConverter()
 
 
 @textbook_bp.route('/upload', methods=['POST'])
@@ -90,16 +94,15 @@ def upload_textbook():
     db.session.commit()
 
     # 检测是否为Office文档，自动转换为PDF
-    converter = OfficeToPDFConverter()
     if FileModel.is_office_document(document_file.file_path) and converter.libreoffice_path:
         try:
             print(f"[Office Conversion] Starting conversion for textbook document: {document_filename}")
             pdf_output_dir = os.path.join(UPLOAD_FOLDER, 'pdfs')
             pdf_path = converter.convert_to_pdf(document_file.file_path, pdf_output_dir)
-
+ 
             if pdf_path and os.path.exists(pdf_path):
                 print(f"[Office Conversion] Conversion successful: {pdf_path}")
-
+ 
                 # 创建PDF文件记录
                 pdf_filename = os.path.basename(pdf_path)
                 pdf_file_record = FileModel(
@@ -111,15 +114,56 @@ def upload_textbook():
                     mime_type='application/pdf',
                     uploader_id=request.current_user_id
                 )
-
+ 
                 db.session.add(pdf_file_record)
                 db.session.commit()
-
+ 
                 # 关联PDF到原文档文件
                 document_file.pdf_file_id = pdf_file_record.id
                 db.session.commit()
-
+ 
                 print(f"[Office Conversion] PDF linked: doc_file_id={document_file.id}, pdf_file_id={pdf_file_record.id}")
+                
+                # 自动从PDF生成预览图片
+                if img_converter.imagick_path:
+                    try:
+                        print(f"[Image Generation] Starting preview image generation for: {pdf_filename}")
+                        image_output_dir = os.path.join(UPLOAD_FOLDER, 'images')
+                        os.makedirs(image_output_dir, exist_ok=True)
+                        
+                        # 生成缩略图（更适合预览）
+                        image_path = img_converter.pdf_to_thumbnail(pdf_path, image_output_dir, width=400, height=300)
+                        
+                        if image_path and os.path.exists(image_path):
+                            print(f"[Image Generation] Preview image generated: {image_path}")
+                            
+                            # 创建图片文件记录
+                            image_filename = os.path.basename(image_path)
+                            image_file_record = FileModel(
+                                filename=image_filename,
+                                original_filename=f"{os.path.splitext(document_filename)[0]}_preview.jpg",
+                                file_type=FileModel.FILE_TYPE_IMAGE,
+                                file_size=os.path.getsize(image_path),
+                                file_path=image_path,
+                                mime_type='image/jpeg',
+                                uploader_id=request.current_user_id
+                            )
+                            
+                            db.session.add(image_file_record)
+                            db.session.commit()
+                            
+                            # 关联图片到原文件
+                            document_file.image_file_id = image_file_record.id
+                            db.session.commit()
+                            
+                            print(f"[Image Generation] Image linked: file_id={document_file.id}, image_file_id={image_file_record.id}")
+                        else:
+                            print(f"[Image Generation] Preview image generation failed for: {pdf_filename}")
+                    except Exception as e:
+                        print(f"[Image Generation] Error during image generation: {str(e)}")
+                        # 图片生成失败不影响上传，只记录日志
+                else:
+                    print(f"[Image Generation] ImageMagick not found, skipping preview image generation")
             else:
                 print(f"[Office Conversion] Conversion failed: {document_filename}")
         except Exception as e:
@@ -239,52 +283,59 @@ def delete_textbook(textbook_id):
 @textbook_bp.route('/<int:textbook_id>/like', methods=['POST'])
 @token_required
 def toggle_like_textbook(textbook_id):
-    textbook = Textbook.query.get(textbook_id)
-    
-    if not textbook:
-        return not_found_response('教材不存在')
-    
-    existing_like = Like.query.filter_by(
-        textbook_id=textbook_id,
-        user_id=request.current_user_id
-    ).first()
-    
-    if existing_like:
-        db.session.delete(existing_like)
-        is_liked = False
-    else:
-        new_like = Like(
+    try:
+        textbook = Textbook.query.get(textbook_id)
+        
+        if not textbook:
+            return not_found_response('教材不存在')
+        
+        existing_like = Like.query.filter_by(
             textbook_id=textbook_id,
             user_id=request.current_user_id
-        )
-        db.session.add(new_like)
-        is_liked = True
-    
-    db.session.commit()
-    
-    return success_response('操作成功', {
-        'textbook': textbook.to_dict(request.current_user_id),
-        'is_liked': is_liked
-    })
+        ).first()
+        
+        if existing_like:
+            db.session.delete(existing_like)
+            is_liked = False
+        else:
+            new_like = Like(
+                textbook_id=textbook_id,
+                user_id=request.current_user_id
+            )
+            db.session.add(new_like)
+            is_liked = True
+        
+        db.session.commit()
+        
+        return success_response('操作成功', {
+            'textbook': textbook.to_dict(request.current_user_id),
+            'is_liked': is_liked
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in toggle_like_textbook: {str(e)}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return error_response(f'操作失败: {str(e)}')
 
 @textbook_bp.route('/favorites', methods=['GET'])
 @token_required
 def get_textbook_favorites():
     """获取当前用户收藏的教材列表"""
     try:
-         page = request.args.get('page', 1, type=int)
-         per_page = request.args.get('per_page', 12, type=int)
-         
-         # 查询用户收藏的教材，按收藏时间倒序，支持分页
-         query = Like.query.filter(
-             Like.user_id == request.current_user_id,
-             Like.textbook_id != None
-         )
-         likes = query.order_by(Like.created_at.desc()).paginate(
-             page=page,
-             per_page=per_page,
-             error_out=False
-         )
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 12, type=int)
+        
+        # 查询用户收藏的教材，按收藏时间倒序，支持分页
+        query = Like.query.filter(
+            Like.user_id == request.current_user_id,
+            Like.textbook_id != None
+        )
+        likes = query.order_by(Like.created_at.desc()).paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False
+        )
         
         # 构建结果列表
         result = []

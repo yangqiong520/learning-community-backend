@@ -1,13 +1,24 @@
+import os
+import uuid
 from flask import Blueprint, request, jsonify
 from libs.db import db
 from app.models.homework import HomeworkType, Homework, HomeworkVersion, ExcellentHomework, ProblemHomework
 from app.models.user import User
 from app.models.homework_like import HomeworkLike
 from app.models.course import Course
-from libs.jwt_auth import token_required
-from libs.response import success_response, error_response, not_found_response
+from app.models.file import File as FileModel
+from app.utils.office_converter import OfficeToPDFConverter
+from app.utils.pdf_to_image import PDFToImageConverter
+from libs.jwt_auth import token_required, role_required
+from libs.response import success_response, created_response, error_response, not_found_response, bad_request_response
 
 homework_bp = Blueprint('homeworks', __name__)
+
+UPLOAD_FOLDER = 'storage'
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+
+converter = OfficeToPDFConverter()
+img_converter = PDFToImageConverter()
 
 @homework_bp.route('/types', methods=['GET'])
 @token_required
@@ -506,3 +517,268 @@ def get_favorites():
         })
     except Exception as e:
         return error_response(f'获取收藏列表失败: {str(e)}')
+
+def save_file(file):
+    """保存文件并返回文件记录"""
+    if not file or file.filename == '':
+        return None
+
+    file_size = len(file.read()) if hasattr(file, 'read') else 0
+    file.seek(0)
+
+    if file_size > MAX_FILE_SIZE:
+        return None
+
+    file_type = FileModel.detect_file_type(file.filename)
+    original_filename = file.filename
+
+    if not original_filename or original_filename == '':
+        return None
+
+    file_ext = os.path.splitext(original_filename)[1].lower().lstrip('.')
+    new_filename = f"{uuid.uuid4().hex}.{file_ext}"
+
+    if file_type == FileModel.FILE_TYPE_IMAGE:
+        upload_path = os.path.join(UPLOAD_FOLDER, 'images')
+    elif file_type == FileModel.FILE_TYPE_VIDEO:
+        upload_path = os.path.join(UPLOAD_FOLDER, 'videos')
+    elif file_type == FileModel.FILE_TYPE_DOCUMENT:
+        upload_path = os.path.join(UPLOAD_FOLDER, 'documents')
+    else:
+        upload_path = os.path.join(UPLOAD_FOLDER, 'others')
+
+    file_path = os.path.join(upload_path, new_filename)
+
+    file.save(file_path)
+    file_size_saved = os.path.getsize(file_path)
+
+    mime_type = file.content_type
+
+    file_record = FileModel(
+        filename=new_filename,
+        original_filename=original_filename,
+        file_type=file_type,
+        file_size=file_size_saved,
+        file_path=file_path,
+        mime_type=mime_type,
+        uploader_id=request.current_user_id
+    )
+
+    db.session.add(file_record)
+    db.session.commit()
+    
+    # 检测是否为Office文档，自动转换为PDF
+    if FileModel.is_office_document(file_path) and converter.libreoffice_path:
+        try:
+            print(f"[Office Conversion] Starting conversion for: {original_filename}")
+            pdf_output_dir = os.path.join(UPLOAD_FOLDER, 'pdfs')
+            os.makedirs(pdf_output_dir, exist_ok=True)
+            pdf_path = converter.convert_to_pdf(file_path, pdf_output_dir)
+            
+            if pdf_path and os.path.exists(pdf_path):
+                print(f"[Office Conversion] Conversion successful: {pdf_path}")
+                
+                # 创建PDF文件记录
+                pdf_filename = os.path.basename(pdf_path)
+                pdf_file_record = FileModel(
+                    filename=pdf_filename,
+                    original_filename=os.path.splitext(original_filename)[0] + '.pdf',
+                    file_type=FileModel.FILE_TYPE_DOCUMENT,
+                    file_size=os.path.getsize(pdf_path),
+                    file_path=pdf_path,
+                    mime_type='application/pdf',
+                    uploader_id=request.current_user_id
+                )
+                
+                db.session.add(pdf_file_record)
+                db.session.commit()
+                
+                # 关联PDF到原文件
+                file_record.pdf_file_id = pdf_file_record.id
+                db.session.commit()
+                
+                print(f"[Office Conversion] PDF linked: file_id={file_record.id}, pdf_file_id={pdf_file_record.id}")
+                
+                # 自动从PDF生成预览图片
+                if img_converter.imagick_path:
+                    try:
+                        print(f"[Image Generation] Starting preview image generation for: {pdf_filename}")
+                        image_output_dir = os.path.join(UPLOAD_FOLDER, 'images')
+                        os.makedirs(image_output_dir, exist_ok=True)
+                        
+                        # 生成缩略图（更适合预览）
+                        image_path = img_converter.pdf_to_thumbnail(pdf_path, image_output_dir, width=400, height=300)
+                        
+                        if image_path and os.path.exists(image_path):
+                            print(f"[Image Generation] Preview image generated: {image_path}")
+                            
+                            # 创建图片文件记录
+                            image_filename = os.path.basename(image_path)
+                            image_file_record = FileModel(
+                                filename=image_filename,
+                                original_filename=f"{os.path.splitext(original_filename)[0]}_preview.jpg",
+                                file_type=FileModel.FILE_TYPE_IMAGE,
+                                file_size=os.path.getsize(image_path),
+                                file_path=image_path,
+                                mime_type='image/jpeg',
+                                uploader_id=request.current_user_id
+                            )
+                            
+                            db.session.add(image_file_record)
+                            db.session.commit()
+                            
+                            # 关联图片到原文件
+                            file_record.image_file_id = image_file_record.id
+                            db.session.commit()
+                            
+                            print(f"[Image Generation] Image linked: file_id={file_record.id}, image_file_id={image_file_record.id}")
+                        else:
+                            print(f"[Image Generation] Preview image generation failed for: {pdf_filename}")
+                    except Exception as e:
+                        print(f"[Image Generation] Error during image generation: {str(e)}")
+                        # 图片生成失败不影响上传，只记录日志
+                else:
+                    print(f"[Image Generation] ImageMagick not found, skipping preview image generation")
+            else:
+                print(f"[Office Conversion] Conversion failed: {original_filename}")
+        except Exception as e:
+            print(f"[Office Conversion] Error during conversion: {str(e)}")
+            # 转换失败不影响上传，只记录日志
+    
+    return file_record
+
+@homework_bp.route('/excellent/upload', methods=['POST'])
+@token_required
+def upload_excellent_homework():
+    """直接上传优秀作业（类似相关制度的逻辑）
+    权限：超级管理员、管理员、教师可以上传，学生不能直接上传"""
+    try:
+        # 验证权限：超级管理员、管理员、教师可以上传，学生不能直接上传
+        user = User.query.get(request.current_user_id)
+        if user.role not in [User.ROLE_SUPER_ADMIN, User.ROLE_ADMIN, User.ROLE_TEACHER]:
+            return bad_request_response('学生不能直接上传优秀作业，需要教师审核', 403)
+        elif user.role == User.ROLE_STUDENT:
+            return bad_request_response('学生不能直接上传优秀作业，需要教师审核', 403)
+        print(f"\n{'='*60}")
+        print(f"[DEBUG] 收到上传优秀作业请求")
+        print(f"[DEBUG] 请求方法: {request.method}")
+        print(f"[DEBUG] 请求路径: {request.path}")
+        print(f"[DEBUG] 请求头: {dict(request.headers)}")
+        print(f"[DEBUG] 请求文件: {list(request.files.keys())}")
+        print(f"[DEBUG] 请求表单数据: {list(request.form.keys())}")
+
+        if 'document' not in request.files:
+            return bad_request_response('请上传文档文件')
+        
+        # 图片是可选的，如果没有上传，将使用文档自动生成的预览图片
+        image = request.files.get('image')
+        
+        if 'title' not in request.form:
+            return bad_request_response('标题不能为空')
+        
+        if 'student_id' not in request.form:
+            return bad_request_response('学生ID不能为空')
+        
+        if 'course_id' not in request.form:
+            return bad_request_response('课程ID不能为空')
+        
+        title = request.form.get('title', '').strip()
+        content = request.form.get('content', '').strip()
+        student_id = int(request.form.get('student_id'))
+        course_id = int(request.form.get('course_id'))
+        
+        document = request.files['document']
+        # 图片是可选的，如果没有上传，将使用文档自动生成的预览图片
+        image = request.files.get('image')
+        
+        print(f"[DEBUG] 标题: {title}")
+        print(f"[DEBUG] 学生ID: {student_id}")
+        print(f"[DEBUG] 课程ID: {course_id}")
+        print(f"[DEBUG] 文档文件: {document.filename}")
+        print(f"[DEBUG] 图片文件: {image.filename if image else '未提供'}")
+        
+        # 验证学生存在
+        student = User.query.get(student_id)
+        if not student or student.role != User.ROLE_STUDENT:
+            return bad_request_response('指定的学生不存在或不是学生角色')
+        
+        # 验证课程存在
+        course = Course.query.get(course_id)
+        if not course:
+            return bad_request_response('指定的课程不存在')
+        
+        # 保存文件
+        document_file = save_file(document)
+        
+        # 图片是可选的，如果没有上传，将使用文档自动生成的预览图片
+        image_file = None
+        if image:
+            image_file = save_file(image)
+            print(f"[DEBUG] 图片文件记录ID: {image_file.id}")
+        elif document_file and document_file.image_file_id:
+            # 没有上传图片，但文档已经自动生成了预览图片
+            image_file = FileModel.query.get(document_file.image_file_id)
+            print(f"[DEBUG] 使用文档自动生成的预览图片，ID: {image_file.id}")
+        else:
+            # 没有上传图片，且文档也没有自动生成预览图片，返回错误
+            return bad_request_response('请上传图片文件，或者等待文档转换完成预览图片生成')
+        
+        if not document_file or not image_file:
+            return bad_request_response('文件上传失败')
+        
+        print(f"[DEBUG] 文档文件记录ID: {document_file.id}")
+        
+        # 创建作业
+        homework = Homework(
+            student_id=student_id,
+            course_id=course_id,
+            homework_type_id=1,  # 默认类型ID
+            status=Homework.STATUS_EXCELLENT
+        )
+        
+        db.session.add(homework)
+        db.session.flush()
+        
+        print(f"[DEBUG] 作业记录创建成功，ID: {homework.id}")
+        
+        # 创建作业版本
+        version = HomeworkVersion(
+            homework_id=homework.id,
+            version_number=1,
+            file_file_id=document_file.id,
+            pdf_file_id=document_file.pdf_file_id,
+            img_file_id=image_file.id,
+            evaluation=content if content else '优秀作业',
+            score='优秀'
+        )
+        
+        db.session.add(version)
+        db.session.flush()
+        
+        print(f"[DEBUG] 作业版本记录创建成功，ID: {version.id}")
+        
+        # 更新作业的当前版本
+        homework.current_version_id = version.id
+        db.session.commit()
+        
+        # 创建优秀作业记录
+        excellent_homework = ExcellentHomework(
+            homework_version_id=version.id,
+            teacher_id=request.current_user_id
+        )
+        
+        db.session.add(excellent_homework)
+        db.session.commit()
+        
+        print(f"[DEBUG] 优秀作业记录创建成功，ID: {excellent_homework.id}")
+        print(f"[INFO] 优秀作业上传完成！")
+        
+        return created_response('上传优秀作业成功', {
+            'excellent_homework': excellent_homework.to_dict(user_id=request.current_user_id)
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"[ERROR] 上传优秀作业失败: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return error_response(f'上传优秀作业失败: {str(e)}')

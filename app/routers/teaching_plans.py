@@ -6,16 +6,19 @@ from libs.db import db
 from app.models.teaching_plan import TeachingPlan
 from app.models.like import Like
 from libs.jwt_auth import token_required, role_required
-from libs.response import success_response, created_response, bad_request_response, not_found_response, forbidden_response
+from libs.response import success_response, created_response, bad_request_response, not_found_response, forbidden_response, error_response
 from app.models.file import File as FileModel
 from app.utils.simple_document_extractor import extract_document_content_simple, is_supported_document
-from libs.jwt_auth import token_required, role_required
-from libs.response import success_response, created_response, bad_request_response, not_found_response, forbidden_response
+from app.utils.office_converter import OfficeToPDFConverter
+from app.utils.pdf_to_image import PDFToImageConverter
 
 teaching_bp = Blueprint('teaching_plans', __name__, url_prefix='/api/v2/teaching_plans')
 
 UPLOAD_FOLDER = 'storage'
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+
+converter = OfficeToPDFConverter()
+img_converter = PDFToImageConverter()
 
 def detect_file_type(filename):
     if not filename or '.' not in filename:
@@ -95,6 +98,83 @@ def save_file(file):
     db.session.commit()
     
     print(f"DEBUG: File record created with ID: {file_record.id}")
+    
+    # 检测是否为Office文档，自动转换为PDF
+    if FileModel.is_office_document(file_path) and converter.libreoffice_path:
+        try:
+            print(f"[Office Conversion] Starting conversion for: {original_filename}")
+            pdf_output_dir = os.path.join(UPLOAD_FOLDER, 'pdfs')
+            os.makedirs(pdf_output_dir, exist_ok=True)
+            pdf_path = converter.convert_to_pdf(file_path, pdf_output_dir)
+            
+            if pdf_path and os.path.exists(pdf_path):
+                print(f"[Office Conversion] Conversion successful: {pdf_path}")
+                
+                # 创建PDF文件记录
+                pdf_filename = os.path.basename(pdf_path)
+                pdf_file_record = FileModel(
+                    filename=pdf_filename,
+                    original_filename=os.path.splitext(original_filename)[0] + '.pdf',
+                    file_type=FileModel.FILE_TYPE_DOCUMENT,
+                    file_size=os.path.getsize(pdf_path),
+                    file_path=pdf_path,
+                    mime_type='application/pdf',
+                    uploader_id=request.current_user_id
+                )
+                
+                db.session.add(pdf_file_record)
+                db.session.commit()
+                
+                # 关联PDF到原文件
+                file_record.pdf_file_id = pdf_file_record.id
+                db.session.commit()
+                
+                print(f"[Office Conversion] PDF linked: file_id={file_record.id}, pdf_file_id={pdf_file_record.id}")
+                
+                # 自动从PDF生成预览图片
+                if img_converter.imagick_path:
+                    try:
+                        print(f"[Image Generation] Starting preview image generation for: {pdf_filename}")
+                        image_output_dir = os.path.join(UPLOAD_FOLDER, 'images')
+                        os.makedirs(image_output_dir, exist_ok=True)
+                        
+                        # 生成缩略图（更适合预览）
+                        image_path = img_converter.pdf_to_thumbnail(pdf_path, image_output_dir, width=400, height=300)
+                        
+                        if image_path and os.path.exists(image_path):
+                            print(f"[Image Generation] Preview image generated: {image_path}")
+                            
+                            # 创建图片文件记录
+                            image_filename = os.path.basename(image_path)
+                            image_file_record = FileModel(
+                                filename=image_filename,
+                                original_filename=f"{os.path.splitext(original_filename)[0]}_preview.jpg",
+                                file_type=FileModel.FILE_TYPE_IMAGE,
+                                file_size=os.path.getsize(image_path),
+                                file_path=image_path,
+                                mime_type='image/jpeg',
+                                uploader_id=request.current_user_id
+                            )
+                            
+                            db.session.add(image_file_record)
+                            db.session.commit()
+                            
+                            # 关联图片到原文件
+                            file_record.image_file_id = image_file_record.id
+                            db.session.commit()
+                            
+                            print(f"[Image Generation] Image linked: file_id={file_record.id}, image_file_id={image_file_record.id}")
+                        else:
+                            print(f"[Image Generation] Preview image generation failed for: {pdf_filename}")
+                    except Exception as e:
+                        print(f"[Image Generation] Error during image generation: {str(e)}")
+                        # 图片生成失败不影响上传，只记录日志
+                else:
+                    print(f"[Image Generation] ImageMagick not found, skipping preview image generation")
+            else:
+                print(f"[Office Conversion] Conversion failed: {original_filename}")
+        except Exception as e:
+            print(f"[Office Conversion] Error during conversion: {str(e)}")
     
     return file_record
 
@@ -259,52 +339,70 @@ def delete_teaching_plan(teaching_plan_id):
 @teaching_bp.route('/<int:teaching_plan_id>/like', methods=['POST'])
 @token_required
 def toggle_like_teaching_plan(teaching_plan_id):
-    teaching_plan = TeachingPlan.query.get(teaching_plan_id)
-    
-    if not teaching_plan or not teaching_plan.is_active:
-        return not_found_response('教学计划不存在')
-    
-    existing_like = Like.query.filter_by(
-        teaching_plan_id=teaching_plan_id,
-        user_id=request.current_user_id
-    ).first()
-    
-    if existing_like:
-        db.session.delete(existing_like)
-        is_liked = False
-    else:
-        new_like = Like(
-            user_id=request.current_user_id,
-            teaching_plan_id=teaching_plan_id
-        )
-        db.session.add(new_like)
-        is_liked = True
-    
-    db.session.commit()
-    
-    return success_response('操作成功', {
-        'teaching_plan': teaching_plan.to_dict(request.current_user_id),
-        'is_liked': is_liked
-    })
+    try:
+        print(f"[DEBUG] 教学计划点赞 - 用户ID: {request.current_user_id}, 教学计划ID: {teaching_plan_id}", flush=True)
+        
+        teaching_plan = TeachingPlan.query.get(teaching_plan_id)
+        
+        if not teaching_plan or not teaching_plan.is_active:
+            return not_found_response('教学计划不存在')
+        
+        existing_like = Like.query.filter_by(
+            teaching_plan_id=teaching_plan_id,
+            user_id=request.current_user_id
+        ).first()
+        
+        print(f"[DEBUG] 现有点赞记录: {existing_like is not None}", flush=True)
+        
+        if existing_like:
+            print(f"[DEBUG] 取消点赞", flush=True)
+            db.session.delete(existing_like)
+            is_liked = False
+        else:
+            print(f"[DEBUG] 添加点赞", flush=True)
+            new_like = Like(
+                user_id=request.current_user_id,
+                teaching_plan_id=teaching_plan_id
+            )
+            db.session.add(new_like)
+            is_liked = True
+        
+        db.session.commit()
+        print(f"[DEBUG] 数据库提交成功, is_liked: {is_liked}", flush=True)
+        
+        return success_response('操作成功', {
+            'teaching_plan': teaching_plan.to_dict(request.current_user_id),
+            'is_liked': is_liked
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in toggle_like_teaching_plan: {str(e)}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return error_response(f'操作失败: {str(e)}')
 
 @teaching_bp.route('/favorites', methods=['GET'])
 @token_required
 def get_teaching_plan_favorites():
     """获取当前用户收藏的教学计划列表"""
     try:
-         page = request.args.get('page', 1, type=int)
-         per_page = request.args.get('per_page', 12, type=int)
-         
-         # 查询用户收藏的教学计划，按收藏时间倒序，支持分页
-         query = Like.query.filter(
-             Like.user_id == request.current_user_id,
-             Like.teaching_plan_id != None
-         )
-         likes = query.order_by(Like.created_at.desc()).paginate(
-             page=page,
-             per_page=per_page,
-             error_out=False
-         )
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 12, type=int)
+        
+        print(f"[DEBUG] 教学计划收藏列表 - 用户ID: {request.current_user_id}, page: {page}", flush=True)
+        
+        # 查询用户收藏的教学计划，按收藏时间倒序，支持分页
+        query = Like.query.filter(
+            Like.user_id == request.current_user_id,
+            Like.teaching_plan_id != None
+        )
+        likes = query.order_by(Like.created_at.desc()).paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False
+        )
+        
+        print(f"[DEBUG] 查询到 {len(likes.items)} 条收藏记录", flush=True)
         
         # 构建结果列表
         result = []
@@ -320,6 +418,8 @@ def get_teaching_plan_favorites():
                         item['favorite_time'] = None
                     result.append(item)
         
+        print(f"[DEBUG] 返回 {len(result)} 条教学计划收藏", flush=True)
+        
         return success_response('获取收藏列表成功', {
             'teaching_plans': result,
             'total': likes.total,
@@ -328,4 +428,5 @@ def get_teaching_plan_favorites():
             'pages': likes.pages
         })
     except Exception as e:
+        print(f"Error in get_teaching_plan_favorites: {str(e)}", flush=True)
         return error_response(f'获取收藏列表失败: {str(e)}')

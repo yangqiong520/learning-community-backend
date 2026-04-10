@@ -1,3 +1,5 @@
+import os
+import uuid
 from flask import Blueprint, request, url_for
 from libs.db import db
 from app.models.training_program import TrainingProgram
@@ -7,11 +9,15 @@ from libs.response import success_response, created_response, bad_request_respon
 from app.models.file import File as FileModel
 from app.utils.simple_document_extractor import extract_document_content_simple, is_supported_document
 from app.utils.office_converter import OfficeToPDFConverter
+from app.utils.pdf_to_image import PDFToImageConverter
 
 training_bp = Blueprint('training_programs', __name__, url_prefix='/api/v2/training_programs')
 
 UPLOAD_FOLDER = 'storage'
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+
+converter = OfficeToPDFConverter()
+img_converter = PDFToImageConverter()
 
 def save_file(file):
     if not file or file.filename == '':
@@ -63,17 +69,16 @@ def save_file(file):
 
     # 自动转换为 PDF
     if FileModel.is_office_document(file_path) and file_type == FileModel.FILE_TYPE_DOCUMENT:
-        converter = OfficeToPDFConverter()
         if converter.libreoffice_path:
             try:
                 print(f"[Office Conversion] Starting conversion for training program document")
                 pdf_output_dir = os.path.join(UPLOAD_FOLDER, 'pdfs')
                 os.makedirs(pdf_output_dir, exist_ok=True)
                 pdf_path = converter.convert_to_pdf(file_path, pdf_output_dir)
-
+ 
                 if pdf_path and os.path.exists(pdf_path):
                     print(f"[Office Conversion] Conversion successful {pdf_path}")
-
+ 
                     # 创建 PDF 文件记录
                     pdf_filename = os.path.basename(pdf_path)
                     pdf_file_record = FileModel(
@@ -85,15 +90,56 @@ def save_file(file):
                         mime_type='application/pdf',
                         uploader_id=request.current_user_id
                     )
-
+ 
                     db.session.add(pdf_file_record)
                     db.session.commit()
-
+ 
                     # 关联 PDF 到文档
                     file_record.pdf_file_id = pdf_file_record.id
                     db.session.commit()
-
+ 
                     print(f"[Office Conversion] PDF linked: doc_file_id={file_record.id}, pdf_file_id={pdf_file_record.id}")
+                    
+                    # 自动从PDF生成预览图片
+                    if img_converter.imagick_path:
+                        try:
+                            print(f"[Image Generation] Starting preview image generation for: {pdf_filename}")
+                            image_output_dir = os.path.join(UPLOAD_FOLDER, 'images')
+                            os.makedirs(image_output_dir, exist_ok=True)
+                            
+                            # 生成缩略图（更适合预览）
+                            image_path = img_converter.pdf_to_thumbnail(pdf_path, image_output_dir, width=400, height=300)
+                            
+                            if image_path and os.path.exists(image_path):
+                                print(f"[Image Generation] Preview image generated: {image_path}")
+                                
+                                # 创建图片文件记录
+                                image_filename = os.path.basename(image_path)
+                                image_file_record = FileModel(
+                                    filename=image_filename,
+                                    original_filename=f"{os.path.splitext(original_filename)[0]}_preview.jpg",
+                                    file_type=FileModel.FILE_TYPE_IMAGE,
+                                    file_size=os.path.getsize(image_path),
+                                    file_path=image_path,
+                                    mime_type='image/jpeg',
+                                    uploader_id=request.current_user_id
+                                )
+                                
+                                db.session.add(image_file_record)
+                                db.session.commit()
+                                
+                                # 关联图片到原文件
+                                file_record.image_file_id = image_file_record.id
+                                db.session.commit()
+                                
+                                print(f"[Image Generation] Image linked: file_id={file_record.id}, image_file_id={image_file_record.id}")
+                            else:
+                                print(f"[Image Generation] Preview image generation failed for: {pdf_filename}")
+                        except Exception as e:
+                            print(f"[Image Generation] Error during image generation: {str(e)}")
+                            # 图片生成失败不影响上传，只记录日志
+                    else:
+                        print(f"[Image Generation] ImageMagick not found, skipping preview image generation")
                 else:
                     print(f"[Office Conversion] Conversion failed: {original_filename}")
             except Exception as e:
@@ -101,7 +147,7 @@ def save_file(file):
                 # 转换失败不影响上传，只记录日志
         else:
             print("[Office Conversion] LibreOffice not available, skipping conversion")
-
+ 
     return file_record
 
 @training_bp.route('/upload', methods=['POST'])
@@ -146,7 +192,7 @@ def create_training_program():
 
     image.save(image_file_path)
     image_size = os.path.getsize(image_file_path)
-
+ 
     image_file_record = FileModel(
         filename=new_image_filename,
         original_filename=image_filename,
@@ -156,8 +202,8 @@ def create_training_program():
         mime_type=image.content_type,
         uploader_id=request.current_user_id
     )
-
-    db.session.add(image_file)
+ 
+    db.session.add(image_file_record)
     db.session.commit()
     print(f"[File Upload] Image saved with ID: {image_file_record.id}")
 
@@ -390,18 +436,18 @@ def get_training_program_favorites():
     """获取当前用户收藏的培养方案列表"""
     try:
         page = request.args.get('page', 1, type=int)
-         per_page = request.args.get('per_page', 12, type=int)
-         
-         # 查询用户收藏的培养方案，按收藏时间倒序，支持分页
-         query = Like.query.filter(
-             Like.user_id == request.current_user_id,
-             Like.training_program_id != None
-         )
-         likes = query.order_by(Like.created_at.desc()).paginate(
-             page=page,
-             per_page=per_page,
-             error_out=False
-         )
+        per_page = request.args.get('per_page', 12, type=int)
+        
+        # 查询用户收藏的培养方案，按收藏时间倒序，支持分页
+        query = Like.query.filter(
+            Like.user_id == request.current_user_id,
+            Like.training_program_id != None
+        )
+        likes = query.order_by(Like.created_at.desc()).paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False
+        )
         
         # 构建结果列表
         result = []
