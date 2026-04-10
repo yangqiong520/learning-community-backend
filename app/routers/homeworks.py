@@ -471,7 +471,7 @@ def get_favorites():
     """获取当前用户收藏的优秀作业列表"""
     try:
         page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 10, type=int)
+        per_page = request.args.get('per_page', 12, type=int)
         
         # 查询用户收藏的优秀作业，按收藏时间倒序，支持分页
         likes = HomeworkLike.query.filter_by(

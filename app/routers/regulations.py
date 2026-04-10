@@ -322,17 +322,18 @@ def get_regulation_favorites():
     """获取当前用户收藏的相关制度列表"""
     try:
         page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 10, type=int)
-        
-        # 查询用户收藏的相关制度，按收藏时间倒序，支持分页
-        likes = Like.query.filter(
-            Like.user_id == request.current_user_id,
-            Like.regulation_id != None
-        ).order_by(Like.created_at.desc()).paginate(
-            page=page,
-            per_page=per_page,
-            error_out=False
-        )
+         per_page = request.args.get('per_page', 12, type=int)
+         
+         # 查询用户收藏的相关制度，按收藏时间倒序，支持分页
+         query = Like.query.filter(
+             Like.user_id == request.current_user_id,
+             Like.regulation_id != None
+         )
+         likes = query.order_by(Like.created_at.desc()).paginate(
+             page=page,
+             per_page=per_page,
+             error_out=False
+         )
         
         # 构建结果列表
         result = []
