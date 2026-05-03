@@ -27,11 +27,10 @@ def upload_textbook():
     if 'document' not in request.files:
         return bad_request_response('请上传文档文件')
     
-    if 'image' not in request.files:
-        return bad_request_response('请上传图片文件')
+    # 图片是可选的，如果没有上传，将使用文档自动生成的预览图片
+    image = request.files.get('image')
     
     document = request.files['document']
-    image = request.files['image']
     
     title = request.form.get('title', '').strip()
     content = request.form.get('content', '').strip()
@@ -40,34 +39,21 @@ def upload_textbook():
         return bad_request_response('标题不能为空')
     
     document_filename = document.filename
-    image_filename = image.filename
-
+    
     document_type = FileModel.detect_file_type(document_filename)
-    image_type = FileModel.detect_file_type(image_filename)
     
     if document_type != FileModel.FILE_TYPE_DOCUMENT:
         return bad_request_response('文档格式不支持')
     
-    if image_type != FileModel.FILE_TYPE_IMAGE:
-        return bad_request_response('图片格式不支持')
-    
     file_ext = os.path.splitext(document_filename)[1].lower().lstrip('.')
     new_document_filename = f"{uuid.uuid4().hex}.{file_ext}"
     
-    img_ext = os.path.splitext(image_filename)[1].lower().lstrip('.')
-    new_image_filename = f"{uuid.uuid4().hex}.{img_ext}"
-    
     upload_document_path = os.path.join(UPLOAD_FOLDER, 'documents')
-    upload_image_path = os.path.join(UPLOAD_FOLDER, 'images')
     
     os.makedirs(upload_document_path, exist_ok=True)
-    os.makedirs(upload_image_path, exist_ok=True)
     
     document.save(os.path.join(upload_document_path, new_document_filename))
-    image.save(os.path.join(upload_image_path, new_image_filename))
-    
     document_size = os.path.getsize(os.path.join(upload_document_path, new_document_filename))
-    image_size = os.path.getsize(os.path.join(upload_image_path, new_image_filename))
     
     document_file = FileModel(
         filename=new_document_filename,
@@ -79,30 +65,22 @@ def upload_textbook():
         uploader_id=request.current_user_id
     )
     
-    image_file = FileModel(
-        filename=new_image_filename,
-        original_filename=image_filename,
-        file_type=FileModel.FILE_TYPE_IMAGE,
-        file_size=image_size,
-        file_path=os.path.join(upload_image_path, new_image_filename),
-        mime_type=image.mimetype,
-        uploader_id=request.current_user_id
-    )
-    
     db.session.add(document_file)
-    db.session.add(image_file)
     db.session.commit()
+    print(f"[File Upload] Document saved with ID: {document_file.id}")
 
     # 检测是否为Office文档，自动转换为PDF
+    pdf_file_path = None
     if FileModel.is_office_document(document_file.file_path) and converter.libreoffice_path:
         try:
             print(f"[Office Conversion] Starting conversion for textbook document: {document_filename}")
             pdf_output_dir = os.path.join(UPLOAD_FOLDER, 'pdfs')
             pdf_path = converter.convert_to_pdf(document_file.file_path, pdf_output_dir)
- 
+
             if pdf_path and os.path.exists(pdf_path):
                 print(f"[Office Conversion] Conversion successful: {pdf_path}")
- 
+                pdf_file_path = pdf_path
+
                 # 创建PDF文件记录
                 pdf_filename = os.path.basename(pdf_path)
                 pdf_file_record = FileModel(
@@ -114,79 +92,110 @@ def upload_textbook():
                     mime_type='application/pdf',
                     uploader_id=request.current_user_id
                 )
- 
+
                 db.session.add(pdf_file_record)
                 db.session.commit()
- 
+
                 # 关联PDF到原文档文件
                 document_file.pdf_file_id = pdf_file_record.id
                 db.session.commit()
- 
+
                 print(f"[Office Conversion] PDF linked: doc_file_id={document_file.id}, pdf_file_id={pdf_file_record.id}")
-                
-                # 自动从PDF生成预览图片
-                if img_converter.imagick_path:
-                    try:
-                        print(f"[Image Generation] Starting preview image generation for: {pdf_filename}")
-                        image_output_dir = os.path.join(UPLOAD_FOLDER, 'images')
-                        os.makedirs(image_output_dir, exist_ok=True)
-                        
-                        # 生成缩略图（更适合预览）
-                        image_path = img_converter.pdf_to_thumbnail(pdf_path, image_output_dir, width=400, height=300)
-                        
-                        if image_path and os.path.exists(image_path):
-                            print(f"[Image Generation] Preview image generated: {image_path}")
-                            
-                            # 创建图片文件记录
-                            image_filename = os.path.basename(image_path)
-                            image_file_record = FileModel(
-                                filename=image_filename,
-                                original_filename=f"{os.path.splitext(document_filename)[0]}_preview.jpg",
-                                file_type=FileModel.FILE_TYPE_IMAGE,
-                                file_size=os.path.getsize(image_path),
-                                file_path=image_path,
-                                mime_type='image/jpeg',
-                                uploader_id=request.current_user_id
-                            )
-                            
-                            db.session.add(image_file_record)
-                            db.session.commit()
-                            
-                            # 关联图片到原文件
-                            document_file.image_file_id = image_file_record.id
-                            db.session.commit()
-                            
-                            print(f"[Image Generation] Image linked: file_id={document_file.id}, image_file_id={image_file_record.id}")
-                        else:
-                            print(f"[Image Generation] Preview image generation failed for: {pdf_filename}")
-                    except Exception as e:
-                        print(f"[Image Generation] Error during image generation: {str(e)}")
-                        # 图片生成失败不影响上传，只记录日志
-                else:
-                    print(f"[Image Generation] ImageMagick not found, skipping preview image generation")
             else:
                 print(f"[Office Conversion] Conversion failed: {document_filename}")
         except Exception as e:
             print(f"[Office Conversion] Error during conversion: {str(e)}")
-            # 转换失败不影响上传，只记录日志
 
+    # 如果文件本身就是PDF，或者Office文档转换成功，自动生成预览图片
+    source_pdf_path = pdf_file_path if pdf_file_path else (document_file.file_path if file_ext == 'pdf' else None)
+
+    if source_pdf_path and img_converter.imagick_path:
+        try:
+            print(f"[Image Generation] Starting preview image generation for: {document_filename}")
+            image_output_dir = os.path.join(UPLOAD_FOLDER, 'images')
+            os.makedirs(image_output_dir, exist_ok=True)
+
+            # 生成缩略图（更适合预览）
+            image_path = img_converter.pdf_to_thumbnail(source_pdf_path, image_output_dir, width=400, height=300)
+
+            if image_path and os.path.exists(image_path):
+                print(f"[Image Generation] Preview image generated: {image_path}")
+
+                # 创建图片文件记录
+                image_filename = os.path.basename(image_path)
+                image_file_record = FileModel(
+                    filename=image_filename,
+                    original_filename=f"{os.path.splitext(document_filename)[0]}_preview.jpg",
+                    file_type=FileModel.FILE_TYPE_IMAGE,
+                    file_size=os.path.getsize(image_path),
+                    file_path=image_path,
+                    mime_type='image/jpeg',
+                    uploader_id=request.current_user_id
+                )
+
+                db.session.add(image_file_record)
+                db.session.commit()
+
+                # 关联图片到原文件
+                document_file.image_file_id = image_file_record.id
+                db.session.commit()
+
+                print(f"[Image Generation] Image linked: file_id={document_file.id}, image_file_id={image_file_record.id}")
+            else:
+                print(f"[Image Generation] Preview image generation failed for: {document_filename}")
+        except Exception as e:
+            print(f"[Image Generation] Error during image generation: {str(e)}")
+            # 图片生成失败不影响上传，只记录日志
+    elif not img_converter.imagick_path and source_pdf_path:
+        print(f"[Image Generation] ImageMagick not found, skipping preview image generation")
+    
+    # 图片是可选的，如果没有上传，将使用文档自动生成的预览图片
+    image_file = None
+    if image:
+        # 手动上传的图片
+        file_ext = os.path.splitext(image.filename)[1].lower().lstrip('.')
+        new_image_filename = f"{uuid.uuid4().hex}.{file_ext}"
+        upload_image_path = os.path.join(UPLOAD_FOLDER, 'images')
+        os.makedirs(upload_image_path, exist_ok=True)
+        
+        image.save(os.path.join(upload_image_path, new_image_filename))
+        image_size = os.path.getsize(os.path.join(upload_image_path, new_image_filename))
+        
+        image_file = FileModel(
+            filename=new_image_filename,
+            original_filename=image.filename,
+            file_type=FileModel.detect_file_type(image.filename),
+            file_size=image_size,
+            file_path=os.path.join(upload_image_path, new_image_filename),
+            mime_type=image.mimetype,
+            uploader_id=request.current_user_id
+        )
+        
+        db.session.add(image_file)
+        db.session.commit()
+        print(f"[File Upload] Image saved with ID: {image_file.id}")
+    elif document_file and document_file.image_file_id:
+        # 没有上传图片，但文档已经自动生成了预览图片
+        image_file = FileModel.query.get(document_file.image_file_id)
+        print(f"[File Upload] Using auto-generated preview image, ID: {image_file.id}")
+    
     if not content and is_supported_document(document_filename):
         try:
             content = extract_document_content_simple(document_file.file_path)
         except Exception as e:
             content = f"文档内容提取失败: {str(e)}"
-
+    
     textbook = Textbook(
         title=title,
         content=content,
         document_file_id=document_file.id,
-        image_file_id=image_file.id,
+        image_file_id=image_file.id if image_file else None,
         uploader_id=request.current_user_id
     )
-
+    
     db.session.add(textbook)
     db.session.commit()
-
+    
     return created_response('上传成功', {'textbook': textbook.to_dict(request.current_user_id)})
 
 

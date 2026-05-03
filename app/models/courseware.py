@@ -11,7 +11,7 @@ class Courseware(db.Model):
     title = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text, nullable=False)
     document_file_id = db.Column(db.Integer, db.ForeignKey('files.id'), nullable=False)
-    image_file_id = db.Column(db.Integer, db.ForeignKey('files.id'), nullable=False)
+    image_file_id = db.Column(db.Integer, db.ForeignKey('files.id'), nullable=True)
     uploader_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -48,10 +48,17 @@ class Courseware(db.Model):
             uploader = uploader_user.username if uploader_user else 'Unknown'
 
         # 添加PDF文件信息
-        if self.document_file and self.document_file.pdf_file_id:
-            pdf_file = File.query.get(self.document_file.pdf_file_id)
-            if pdf_file and pdf_file.is_active:
-                result['pdf_file_id'] = pdf_file.id
-                result['pdf_url'] = f'/api/v2/files/serve/{pdf_file.id}'
+        if self.document_file:
+            # 如果有转换后的PDF文件（Office文档转换的）
+            if self.document_file.pdf_file_id:
+                pdf_file = File.query.get(self.document_file.pdf_file_id)
+                if pdf_file and pdf_file.is_active:
+                    result['pdf_file_id'] = pdf_file.id
+                    result['pdf_url'] = f'/api/v2/files/serve/{pdf_file.id}'
+            # 或者文档本身就是PDF
+            elif self.document_file.file_type == File.FILE_TYPE_DOCUMENT and \
+                 self.document_file.file_path.lower().endswith('.pdf'):
+                result['pdf_file_id'] = self.document_file.id
+                result['pdf_url'] = f'/api/v2/files/serve/{self.document_file.id}'
 
         return result

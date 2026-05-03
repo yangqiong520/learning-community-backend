@@ -12,7 +12,7 @@ class TeachingPlan(db.Model):
     title = db.Column(db.String(255), nullable=False)
     content = db.Column(db.Text, nullable=False)
     file_file_id = db.Column(db.Integer, db.ForeignKey('files.id'), nullable=False)
-    image_file_id = db.Column(db.Integer, db.ForeignKey('files.id'), nullable=False)
+    image_file_id = db.Column(db.Integer, db.ForeignKey('files.id'), nullable=True)
     uploader_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -47,15 +47,22 @@ class TeachingPlan(db.Model):
             'image_file_id': image_file.id if image_file else None,
             'imgurl': f'/api/v2/files/serve-image/{image_file.id}' if image_file else '',
             'uploader': uploader,
-            'time': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else '',
+            'time': f"{self.created_at.year}.{self.created_at.month}.{self.created_at.day}" if self.created_at else None,
             'like': is_liked
         }
 
         # 添加PDF文件信息
-        if file_file and file_file.pdf_file_id:
-            pdf_file = File.query.get(file_file.pdf_file_id)
-            if pdf_file and pdf_file.is_active:
-                result['pdf_file_id'] = pdf_file.id
-                result['pdf_url'] = f'/api/v2/files/serve/{pdf_file.id}'
+        if file_file:
+            # 如果有转换后的PDF文件（Office文档转换的）
+            if file_file.pdf_file_id:
+                pdf_file = File.query.get(file_file.pdf_file_id)
+                if pdf_file and pdf_file.is_active:
+                    result['pdf_file_id'] = pdf_file.id
+                    result['pdf_url'] = f'/api/v2/files/serve/{pdf_file.id}'
+            # 或者文档本身就是PDF
+            elif file_file.file_type == File.FILE_TYPE_DOCUMENT and \
+                 file_file.file_path.lower().endswith('.pdf'):
+                result['pdf_file_id'] = file_file.id
+                result['pdf_url'] = f'/api/v2/files/serve/{file_file.id}'
 
         return result
