@@ -13,6 +13,7 @@ from app.routers.coursewares import courseware_bp
 from app.routers.courses import courses_bp
 from app.routers.homeworks import homework_bp
 from app.routers.years import years_bp
+from app.routers.harvests import harvests_bp
 
 try:
     from app.routers.smart_resources import smart_resources_bp
@@ -69,6 +70,7 @@ def create_app():
     app.register_blueprint(courses_bp, url_prefix='/api/v2/courses')
     app.register_blueprint(homework_bp, url_prefix='/api/v2/homework')
     app.register_blueprint(years_bp, url_prefix='/api/v2/years')
+    app.register_blueprint(harvests_bp)
 
     if SMART_RESOURCES_AVAILABLE:
         app.register_blueprint(smart_resources_bp)
