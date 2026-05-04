@@ -1,0 +1,600 @@
+openapi: 3.0.3
+info:
+  title: 智能资源区 API
+  description: |
+    智能资源区后端API文档
+
+    ## 功能说明
+    - 上传视频资源（仅教师、管理员、超级管理员）
+    - 查看智能资源列表（支持搜索、排序、分页）
+    - 查看资源详情
+    - 播放统计（增加播放次数）
+    - 点赞/取消点赞（收藏功能）
+    - 删除资源（仅上传者或管理员）
+    - 查看已点赞的资源列表
+
+    ## 权限说明
+    - **上传**: 仅允许角色 1（超级管理员）、2（管理员）、3（教师）
+    - **删除**: 仅允许上传者或管理员/超级管理员
+    - **查看/播放/点赞**: 所有登录用户
+
+  version: 1.0.0
+  contact:
+    name: API Support
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:5000
+    description: 本地开发服务器
+
+tags:
+  - name: 智能资源
+    description: 智能资源管理相关接口
+
+paths:
+  /api/v2/smart-resources:
+    get:
+      tags:
+        - 智能资源
+      summary: 获取智能资源列表
+      description: 获取智能资源列表，支持搜索、排序、分页
+      operationId: getSmartResources
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          description: 每页数量
+          required: false
+          schema:
+            type: integer
+            default: 12
+            minimum: 1
+            maximum: 100
+        - name: search
+          in: query
+          description: 搜索关键词（标题）
+          required: false
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          description: 排序字段（play_count/created_at）
+          required: false
+          schema:
+            type: string
+            enum: [play_count, created_at]
+            default: created_at
+        - name: sort_order
+          in: query
+          description: 排序方向（asc/desc）
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: 获取成功
+                  data:
+                    type: object
+                    properties:
+                      resources:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SmartResource'
+                      total:
+                        type: integer
+                        example: 100
+                      page:
+                        type: integer
+                        example: 1
+                      per_page:
+                        type: integer
+                        example: 12
+                      pages:
+                        type: integer
+                        example: 9
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags:
+        - 智能资源
+      summary: 上传智能资源
+      description: 上传智能资源（仅教师、管理员、超级管理员）
+      operationId: createSmartResource
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - title
+                - video
+              properties:
+                title:
+                  type: string
+                  description: 资源标题
+                  maxLength: 200
+                  example: 教学视频：Python基础入门
+                video:
+                  type: string
+                  format: binary
+                  description: 视频文件（支持mp4、avi、mov、wmv、flv、mkv、webm、3gp格式）
+      responses:
+        '201':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: 上传成功
+                  data:
+                    type: object
+                    properties:
+                      resource:
+                        $ref: '#/components/schemas/SmartResource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v2/smart-resources/{resource_id}:
+    get:
+      tags:
+        - 智能资源
+      summary: 获取智能资源详情
+      description: 获取单个智能资源的详细信息
+      operationId: getSmartResource
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: resource_id
+          in: path
+          description: 资源ID
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: 获取成功
+                  data:
+                    type: object
+                    properties:
+                      resource:
+                        $ref: '#/components/schemas/SmartResource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    delete:
+      tags:
+        - 智能资源
+      summary: 删除智能资源
+      description: 删除智能资源（仅上传者或管理员、超级管理员）
+      operationId: deleteSmartResource
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: resource_id
+          in: path
+          description: 资源ID
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: 删除成功
+                  data:
+                    type: object
+                    nullable: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v2/smart-resources/{resource_id}/play:
+    post:
+      tags:
+        - 智能资源
+      summary: 增加播放次数
+      description: 增加智能资源的播放次数
+      operationId: incrementPlayCount
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: resource_id
+          in: path
+          description: 资源ID
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 播放次数已更新
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: 播放次数已更新
+                  data:
+                    type: object
+                    properties:
+                      play_count:
+                        type: string
+                        example: "1.2万"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v2/smart-resources/{resource_id}/like:
+    post:
+      tags:
+        - 智能资源
+      summary: 点赞/取消点赞
+      description: 对智能资源进行点赞或取消点赞操作（收藏功能）
+      operationId: toggleLike
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: resource_id
+          in: path
+          description: 资源ID
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: 点赞成功
+                  data:
+                    type: object
+                    properties:
+                      is_liked:
+                        type: boolean
+                        example: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v2/smart-resources/{resource_id}/like-status:
+    get:
+      tags:
+        - 智能资源
+      summary: 获取点赞状态
+      description: 获取当前用户对指定智能资源的点赞状态
+      operationId: getLikeStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: resource_id
+          in: path
+          description: 资源ID
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: 获取成功
+                  data:
+                    type: object
+                    properties:
+                      is_liked:
+                        type: boolean
+                        example: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/v2/smart-resources/liked:
+    get:
+      tags:
+        - 智能资源
+      summary: 获取已点赞的资源列表
+      description: 获取当前用户已点赞的智能资源列表
+      operationId: getLikedResources
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: per_page
+          in: query
+          description: 每页数量
+          required: false
+          schema:
+            type: integer
+            default: 12
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: 获取成功
+                  data:
+                    type: object
+                    properties:
+                      resources:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SmartResource'
+                      total:
+                        type: integer
+                        example: 50
+                      page:
+                        type: integer
+                        example: 1
+                      per_page:
+                        type: integer
+                        example: 12
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT认证，格式：Bearer {token}
+
+  schemas:
+    SmartResource:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: 资源ID
+          example: 1
+        video_url:
+          type: string
+          description: 视频URL（公开访问，无需认证）
+          example: /api/v2/files/serve-video/123
+        thumbnail_url:
+          type: string
+          description: 缩略图URL
+          example: /api/v2/files/serve-image/456
+        play_count:
+          type: string
+          description: 播放次数（格式化后）
+          example: "1.2万"
+        duration:
+          type: string
+          description: 播放时长（HH:MM:SS格式）
+          example: "00:15:26"
+        title:
+          type: string
+          description: 资源标题
+          example: 教学视频：Python基础入门
+        uploader:
+          type: string
+          description: 上传者用户名
+          example: 张老师
+        time:
+          type: string
+          format: date
+          description: 上传时间（YYYY-MM-DD格式）
+          example: "2026-05-04"
+        is_liked:
+          type: boolean
+          description: 当前用户是否已点赞
+          example: false
+
+  responses:
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              code:
+                type: integer
+                example: 400
+              message:
+                type: string
+                example: 请求参数错误
+              data:
+                type: object
+                nullable: true
+
+    Unauthorized:
+      description: 未授权
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              code:
+                type: integer
+                example: 401
+              message:
+                type: string
+                example: 未授权
+              data:
+                type: object
+                nullable: true
+
+    Forbidden:
+      description: 禁止访问
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              code:
+                type: integer
+                example: 403
+              message:
+                type: string
+                example: 禁止访问
+              data:
+                type: object
+                nullable: true
+
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              code:
+                type: integer
+                example: 404
+              message:
+                type: string
+                example: 资源不存在
+              data:
+                type: object
+                nullable: true
+
+    ServerError:
+      description: 服务器错误
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              code:
+                type: integer
+                example: 500
+              message:
+                type: string
+                example: 服务器错误
+              data:
+                type: object
+                nullable: true

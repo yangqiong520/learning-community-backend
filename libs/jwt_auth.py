@@ -103,7 +103,9 @@ def role_required(*allowed_roles):
             from flask import g
             g.user_id = payload['user_id']
             g.user_role = user_role
-            
+            request.current_user_id = g.user_id
+            request.current_user_role = g.user_role
+
             return f(*args, **kwargs)
         return decorated_function
     

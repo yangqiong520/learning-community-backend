@@ -13,7 +13,13 @@ from app.routers.coursewares import courseware_bp
 from app.routers.courses import courses_bp
 from app.routers.homeworks import homework_bp
 from app.routers.years import years_bp
-from app.routers.harvests import harvests_bp
+
+try:
+    from app.routers.smart_resources import smart_resources_bp
+    SMART_RESOURCES_AVAILABLE = True
+except ImportError:
+    print("警告: opencv-python未安装，智能资源功能不可用")
+    SMART_RESOURCES_AVAILABLE = False
 
 with open('config.yaml', 'r', encoding='utf-8') as f:
     config = yaml.safe_load(f)
@@ -63,7 +69,9 @@ def create_app():
     app.register_blueprint(courses_bp, url_prefix='/api/v2/courses')
     app.register_blueprint(homework_bp, url_prefix='/api/v2/homework')
     app.register_blueprint(years_bp, url_prefix='/api/v2/years')
-    app.register_blueprint(harvests_bp)
+
+    if SMART_RESOURCES_AVAILABLE:
+        app.register_blueprint(smart_resources_bp)
     
     @app.route('/')
     def index():
