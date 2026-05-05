@@ -301,23 +301,23 @@ def serve_image_public(file_id):
 def serve_video_public(file_id):
     """公开的视频服务接口，用于播放视频（不需要认证）"""
     file_record = File.query.get(file_id)
-
+    
     if not file_record:
         return not_found_response('文件不存在')
-
+    
     if not file_record.is_active:
         return forbidden_response('文件已被删除')
-
+    
     # 只允许访问视频类型的文件
     if file_record.file_type != File.FILE_TYPE_VIDEO:
         return bad_request_response('此接口仅支持视频文件')
-
+    
     file_path = file_record.file_path
     if not os.path.exists(file_path):
         return not_found_response('文件不存在')
-
+    
     content_type = file_record.mime_type or 'video/mp4'
-
+    
     return send_from_directory(
         os.path.dirname(file_path),
         os.path.basename(file_path),

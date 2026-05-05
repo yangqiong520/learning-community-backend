@@ -1,6 +1,5 @@
 from libs.db import db
 from datetime import datetime
-from app.models.like import Like
 from app.models.file import File
 
 class SmartResource(db.Model):
@@ -18,7 +17,10 @@ class SmartResource(db.Model):
     video_file = db.relationship('File', foreign_keys=[video_file_id])
     thumbnail_file = db.relationship('File', foreign_keys=[thumbnail_file_id])
     uploader = db.relationship('User', foreign_keys=[uploader_id])
-    likes = db.relationship('Like', backref='smart_resource', cascade='all, delete-orphan')
+    likes = db.relationship('Like', 
+                           primaryjoin='and_(SmartResource.id==Like.smart_resource_id, Like.smart_resource_id.isnot(None))',
+                           backref='smart_resource', 
+                           cascade='all, delete-orphan')
 
     @staticmethod
     def format_play_count(count):
@@ -36,6 +38,7 @@ class SmartResource(db.Model):
     def to_dict(self, user_id=None):
         is_liked = False
         if user_id:
+            from app.models.like import Like
             is_liked = Like.query.filter_by(
                 smart_resource_id=self.id,
                 user_id=user_id
