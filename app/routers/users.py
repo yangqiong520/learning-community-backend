@@ -51,6 +51,21 @@ def get_user(user_id):
     
     return success_response('获取成功', {'user': user.to_dict()})
 
+@users_bp.route('/search-by-phone', methods=['GET'])
+@token_required
+def search_user_by_phone():
+    phone = request.args.get('phone', '')
+    
+    if not phone:
+        return bad_request_response('手机号不能为空')
+    
+    user = User.query.filter_by(phone=phone).first()
+    
+    if not user:
+        return success_response('用户不存在', {'user': None})
+    
+    return success_response('查找成功', {'user': user.to_dict()})
+
 @users_bp.route('', methods=['POST'])
 @role_required(User.ROLE_SUPER_ADMIN, User.ROLE_ADMIN)
 def create_user():
